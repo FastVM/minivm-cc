@@ -56,13 +56,13 @@ static void emitf(int line, char *fmt, ...)
     vfprintf(outputfp, buf, args);
     va_end(args);
     fprintf(outputfp, "\n");
+    fflush(outputfp);
 }
 
-static int emit_ret()
+static void emit_ret()
 {
     emit("r0 <- uint 0");
     emit("ret r0");
-    return 0;
 }
 
 static void emit_label(char *label)
@@ -72,29 +72,15 @@ static void emit_label(char *label)
 
 static int emit_binop(Node *node)
 {
+    if (node->kind == '=') {
+        int rhs = emit_expr(node->right);
+        int out = (int) (size_t) map_get(&locals, node->left->varname);
+        emit("r%i <- reg r%i", out, rhs);
+        return out;
+    }
     int lhs = emit_expr(node->left);
-    // if (node->left->ty->kind == KIND_INT &&  node->ty->kind == KIND_FLOAT) {
-    //     int tmp = nregs++;
-    //     emit("r%i <- utof r%i", tmp, lhs);
-    //     lhs = tmp;
-    // }
-    // if (node->left->ty->kind == KIND_FLOAT &&  node->ty->kind == KIND_INT) {
-    //     int tmp = nregs++;
-    //     emit("r%i <- ftou r%i", tmp, lhs);
-    //     lhs = tmp;
-    // }
     int rhs = emit_expr(node->right);
-    // if (node->right->ty->kind == KIND_INT &&  node->ty->kind == KIND_FLOAT) {
-    //     int tmp = nregs++;
-    //     emit("r%i <- utof r%i", tmp, rhs);
-    //     lhs = tmp;
-    // }
-    // if (node->right->ty->kind == KIND_FLOAT &&  node->ty->kind == KIND_INT) {
-    //     int tmp = nregs++;
-    //     emit("r%i <- ftou r%i", tmp, rhs);
-    //     lhs = tmp;
-    // }
-    char tpre = node->ty->kind == KIND_INT ? 'u' : 'f';
+    char tpre = node->left->ty->kind == KIND_INT ? 'u' : 'f';
     switch (node->kind)
     {
     case '+': {
@@ -129,10 +115,10 @@ static int emit_binop(Node *node)
         char *end = make_label();
         emit("%cbeq r%i r%i %s%s %s%s", tpre, lhs, rhs, curfunc, iff, curfunc, ift);
         emit_label(iff);
-        emit("r%i <- %cint 0", ret);
+        emit("r%i <- %cint 0", ret, tpre);
         emit("jump %s%s", curfunc, end);
         emit_label(ift);
-        emit("r%i <- %cint 1", ret);
+        emit("r%i <- %cint 1", ret, tpre);
         emit_label(end);
         return ret;
     }
@@ -143,10 +129,10 @@ static int emit_binop(Node *node)
         char *end = make_label();
         emit("%cbeq r%i r%i %s%s %s%s", tpre, lhs, rhs, curfunc, iff, curfunc, ift);
         emit_label(iff);
-        emit("r%i <- %cint 0", ret);
+        emit("r%i <- %cint 0", ret, tpre);
         emit("jump %s%s", curfunc, end);
         emit_label(ift);
-        emit("r%i <- %cint 1", ret);
+        emit("r%i <- %cint 1", ret, tpre);
         emit_label(end);
         return ret;
     }
@@ -157,10 +143,10 @@ static int emit_binop(Node *node)
         char *end = make_label();
         emit("%cblt r%i r%i %s%s %s%s", tpre, lhs, rhs, curfunc, iff, curfunc, ift);
         emit_label(iff);
-        emit("r%i <- uint 0", ret);
+        emit("r%i <- uint 0", ret, tpre);
         emit("jump %s%s", curfunc, end);
         emit_label(ift);
-        emit("r%i <- uint 1", ret);
+        emit("r%i <- uint 1", ret, tpre);
         emit_label(end);
         return ret;
     }
@@ -169,12 +155,12 @@ static int emit_binop(Node *node)
         char *ift = make_label();
         char *iff = make_label();
         char *end = make_label();
-        emit("%cblt r%i r%i %s%s %s%s", rhs, lhs, curfunc, iff, curfunc, ift);
+        emit("%cblt r%i r%i %s%s %s%s", tpre, rhs, lhs, curfunc, iff, curfunc, ift);
         emit_label(iff);
-        emit("r%i <- uint 0", ret);
+        emit("r%i <- uint 0", ret, tpre);
         emit("jump %s%s", curfunc, end);
         emit_label(ift);
-        emit("r%i <- uint 1", ret);
+        emit("r%i <- uint 1", ret, tpre);
         emit_label(end);
         return ret;
     }
@@ -183,12 +169,12 @@ static int emit_binop(Node *node)
         char *ift = make_label();
         char *iff = make_label();
         char *end = make_label();
-        emit("ublt r%i r%i %s%s %s%s", rhs, lhs, curfunc, ift, curfunc, iff);
+        emit("%cblt r%i r%i %s%s %s%s", tpre, rhs, lhs, curfunc, ift, curfunc, iff);
         emit_label(iff);
-        emit("r%i <- uint 0", ret);
+        emit("r%i <- uint 0", ret, tpre);
         emit("jump %s%s", curfunc, end);
         emit_label(ift);
-        emit("r%i <- uint 1", ret);
+        emit("r%i <- uint 1", ret, tpre);
         emit_label(end);
         return ret;
     }
@@ -197,12 +183,12 @@ static int emit_binop(Node *node)
         char *ift = make_label();
         char *iff = make_label();
         char *end = make_label();
-        emit("ublt r%i r%i %s%s %s%s", tpre, lhs, rhs, curfunc, ift, curfunc, iff);
+        emit("%cblt r%i r%i %s%s %s%s", tpre, lhs, rhs, curfunc, ift, curfunc, iff);
         emit_label(iff);
-        emit("r%i <- uint 0", ret);
+        emit("r%i <- uint 0", ret, tpre);
         emit("jump %s%s", curfunc, end);
         emit_label(ift);
-        emit("r%i <- uint 1", ret);
+        emit("r%i <- uint 1", ret, tpre);
         emit_label(end);
         return ret;
     }
@@ -212,10 +198,9 @@ static int emit_binop(Node *node)
     return 0;
 }
 
-static int emit_jmp(char *label)
+static void emit_jmp(char *label)
 {
     emit("jump %s%s", curfunc, label);
-    return 0;
 }
 
 static int emit_literal(Node *node)
@@ -244,17 +229,6 @@ static const char *emit_args(Vector *vals, Vector *params)
         Node *v = vec_get(vals, i);
         int regno = emit_expr(v);
         Node *p = vec_get(params, i);
-        // printf("%i %i\n", v->ty->kind, p->kind);
-        // if (v->ty->kind == KIND_INT && p->kind == KIND_FLOAT) {
-        //     int next = nregs++;
-        //     emit("r%i <- utof r%i", next, regno);
-        //     regno = next;
-        // }
-        // if (v->ty->kind == KIND_FLOAT && p->kind == KIND_INT) {
-        //     int next = nregs++;
-        //     emit("r%i <- ftou r%i", next, regno);
-        //     regno = next;
-        // }
         args = format("%s r%i", args, regno);
     }
     return args;
@@ -291,9 +265,8 @@ static int emit_conv(Node *node)
     return reg;
 }
 
-static int emit_ternary(Node *node)
+static void emit_if(Node *node)
 {
-    int out = nregs++;
     char *ez = make_label();
     char *nz = make_label();
     int nth = emit_expr(node->cond);
@@ -302,7 +275,8 @@ static int emit_ternary(Node *node)
     {
         emit_label(nz);
         int r = emit_expr(node->then);
-        emit("r%i <- reg r%i", out, r);
+    } else {
+        emit_label(nz);
     }
     if (node->els)
     {
@@ -311,13 +285,41 @@ static int emit_ternary(Node *node)
         emit_label(ez);
         int r = emit_expr(node->els);
         emit_label(end);
-        emit("r%i <- reg r%i", out, r);
     }
     else
     {
         emit_label(ez);
     }
-    return out;
+}
+
+static int emit_ternary(Node *node)
+{
+    char *ez = make_label();
+    char *nz = make_label();
+    int nth = emit_expr(node->cond);
+    int out = nregs++;
+    emit("ubb r%i %s%s %s%s", nth, curfunc, ez, curfunc, nz);
+    if (node->then)
+    {
+        emit_label(nz);
+        int r = emit_expr(node->then);
+        emit("r%i <- reg r%i", out, r);
+    } else {
+        emit_label(nz);
+    }
+    if (node->els)
+    {
+        char *end = make_label();
+        emit_jmp(end);
+        emit_label(ez);
+        int r = emit_expr(node->els);
+        emit("r%i <- reg r%i", out, r);
+        emit_label(end);
+    }
+    else
+    {
+        emit_label(ez);
+    }
 }
 
 static int emit_return(Node *node)
@@ -325,12 +327,6 @@ static int emit_return(Node *node)
     if (node->retval)
     {
         int i = emit_expr(node->retval);
-        // if (node->retval->ty->kind == KIND_INT && rettype->kind == KIND_FLOAT) {
-        //     emit("r%i <- utof r%i", i, i);
-        // }
-        // if (node->retval->ty->kind == KIND_FLOAT && rettype->kind == KIND_INT) {
-        //     emit("r%i <- ftou r%i", i, i);
-        // }
         emit("ret r%i", i);
     } else {
         emit("r0 <- uint 0");
@@ -339,10 +335,27 @@ static int emit_return(Node *node)
     return 0;
 }
 
+static void emit_decl(Vector *inits, Node *var) {
+    for (int i = 0; i < vec_len(inits); i++) {
+        Node *node = vec_get(inits, i);
+        int val = emit_expr(node->initval);
+        map_put(&locals, var->varname, (void*)(size_t)val);
+    }
+}
+
 static int emit_expr(Node *node)
 {
+    printf("%i\n", node->kind);
     switch (node->kind)
     {
+    case AST_GOTO:
+        emit("jump %s%s", curfunc, node->newlabel);
+        return 0;
+    case AST_LABEL:
+        if (node->newlabel) {
+            emit_label(node->newlabel);
+        }
+        return 0;
     case AST_LITERAL:
         return emit_literal(node);
     case AST_LVAR:
@@ -355,6 +368,14 @@ static int emit_expr(Node *node)
     case AST_CONV:
         return emit_conv(node);
     case AST_IF:
+        emit_if(node);
+        return 0;
+    case AST_DECL:
+        if (node->declinit != NULL)
+        {
+            emit_decl(node->declinit, node->declvar);
+        }
+        return 0;
     case AST_TERNARY:
         return emit_ternary(node);
     case AST_RETURN:
