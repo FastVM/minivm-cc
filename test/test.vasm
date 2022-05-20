@@ -1,0 +1,71 @@
+func .fib 256
+	r2 <- uint 2
+	ublt r1 r2 fib.L3 fib.L2
+@fib.L3
+	r3 <- uint 0
+	jump fib.L4
+@fib.L2
+	r3 <- uint 1
+@fib.L4
+	ubb r3 fib.L0 fib.L1
+@fib.L1
+	ret r1
+	r1 <- reg r0
+	jump fib.L5
+@fib.L0
+	r4 <- uint 1
+	r5 <- usub r1 r4
+	r6 <- call .fib r5
+	r7 <- uint 2
+	r8 <- usub r1 r7
+	r9 <- call .fib r8
+	r10 <- uadd r6 r9
+	ret r10
+@fib.L5
+	r1 <- reg r0
+	r0 <- uint 0
+	ret r0
+func .putn 256
+	r2 <- uint 10
+	ublt r1 r2 putn.L9 putn.L8
+@putn.L9
+	r3 <- uint 0
+	jump putn.L10
+@putn.L8
+	r3 <- uint 1
+@putn.L10
+	ubb r3 putn.L6 putn.L7
+@putn.L7
+	r4 <- uint 10
+	r5 <- umod r1 r4
+	r6 <- uint 48
+	r7 <- uadd r5 r6
+	putchar r7
+	r1 <- reg r0
+	jump putn.L11
+@putn.L6
+	r8 <- uint 10
+	r9 <- udiv r1 r8
+	r10 <- call .putn r9
+	r11 <- uint 10
+	r12 <- umod r1 r11
+	r13 <- uint 48
+	r14 <- uadd r12 r13
+	putchar r14
+@putn.L11
+	r1 <- reg r0
+	r0 <- uint 0
+	ret r0
+@main
+	r0 <- call .main
+	exit
+func .main 256
+	r1 <- uint 35
+	r2 <- call .fib r1
+	r3 <- call .putn r2
+	r4 <- uint 10
+	putchar r4
+	r5 <- uint 0
+	ret r5
+	r0 <- uint 0
+	ret r0

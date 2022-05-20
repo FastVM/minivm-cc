@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "*.inc": "c",
+        "8cc.h": "c"
+    }
+}

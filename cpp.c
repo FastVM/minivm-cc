@@ -953,7 +953,7 @@ static void init_predefined_macros() {
     define_special_macro("__INCLUDE_LEVEL__", handle_include_level_macro);
     define_special_macro("__TIMESTAMP__", handle_timestamp_macro);
 
-    read_from_string("#include <" BUILD_DIR "/include/8cc.h>");
+    // read_from_string("#include <" BUILD_DIR "/include/8cc.h>");
 }
 
 void init_now() {

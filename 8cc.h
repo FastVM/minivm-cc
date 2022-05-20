@@ -338,7 +338,6 @@ Vector *dict_keys(Dict *dict);
 
 // error.c
 extern bool enable_warning;
-extern bool dumpstack;
 extern bool dumpsource;
 extern bool warning_is_error;
 

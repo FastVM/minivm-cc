@@ -11,9 +11,7 @@
 static char *infile;
 static char *outfile;
 static char *asmfile;
-static bool dumpast;
 static bool cpponly;
-static bool dumpasm;
 static bool dontlink;
 static Buffer *cppdefs;
 static Vector *tmpfiles = &EMPTY_VECTOR;
@@ -26,12 +24,8 @@ static void usage(int exitcode) {
             "  -E                print preprocessed source code\n"
             "  -D name           Predefine name as a macro\n"
             "  -D name=def\n"
-            "  -S                Stop before assembly (default)\n"
             "  -c                Do not run linker (default)\n"
             "  -U name           Undefine name\n"
-            "  -fdump-ast        print AST\n"
-            "  -fdump-stack      Print stacktrace\n"
-            "  -fno-dump-source  Do not emit source code as assembly comment\n"
             "  -o filename       Output to the specified file\n"
             "  -g                Do nothing at this moment\n"
             "  -Wall             Enable all warnings\n"
@@ -64,14 +58,7 @@ static char *replace_suffix(char *filename, char suffix) {
 }
 
 static FILE *open_asmfile() {
-    if (dumpasm) {
-        asmfile = outfile ? outfile : replace_suffix(base(infile), 's');
-    } else {
-        asmfile = format("/tmp/8ccXXXXXX.s");
-        if (!mkstemps(asmfile, 2))
-            perror("mkstemps");
-        vec_push(tmpfiles, asmfile);
-    }
+    asmfile = outfile ? outfile : replace_suffix(base(infile), 's');
     if (!strcmp(asmfile, "-"))
         return stdout;
     FILE *fp = fopen(asmfile, "w");
@@ -85,17 +72,6 @@ static void parse_warnings_arg(char *s) {
         warning_is_error = true;
     else if (strcmp(s, "all"))
         error("unknown -W option: %s", s);
-}
-
-static void parse_f_arg(char *s) {
-    if (!strcmp(s, "dump-ast"))
-        dumpast = true;
-    else if (!strcmp(s, "dump-stack"))
-        dumpstack = true;
-    else if (!strcmp(s, "no-dump-source"))
-        dumpsource = false;
-    else
-        usage(1);
 }
 
 static void parse_m_arg(char *s) {
@@ -120,13 +96,11 @@ static void parseopt(int argc, char **argv) {
             break;
         }
         case 'O': break;
-        case 'S': dumpasm = true; break;
         case 'U':
             buf_printf(cppdefs, "#undef %s\n", optarg);
             break;
         case 'W': parse_warnings_arg(optarg); break;
         case 'c': dontlink = true; break;
-        case 'f': parse_f_arg(optarg); break;
         case 'm': parse_m_arg(optarg); break;
         case 'g': break;
         case 'o': outfile = optarg; break;
@@ -140,8 +114,6 @@ static void parseopt(int argc, char **argv) {
     if (optind != argc - 1)
         usage(1);
 
-    if (!dumpast && !cpponly && !dumpasm && !dontlink)
-        error("One of -a, -c, -E or -S must be specified");
     infile = argv[optind];
 }
 
@@ -182,27 +154,8 @@ int main(int argc, char **argv) {
     Vector *toplevels = read_toplevels();
     for (int i = 0; i < vec_len(toplevels); i++) {
         Node *v = vec_get(toplevels, i);
-        if (dumpast)
-            printf("%s", node2s(v));
-        else
-            emit_toplevel(v);
+        emit_toplevel(v);
     }
 
     close_output_file();
-
-    if (!dumpast && !dumpasm) {
-        if (!outfile)
-            outfile = replace_suffix(base(infile), 'o');
-        pid_t pid = fork();
-        if (pid < 0) perror("fork");
-        if (pid == 0) {
-            execlp("as", "as", "-o", outfile, "-c", asmfile, (char *)NULL);
-            perror("execl failed");
-        }
-        int status;
-        waitpid(pid, &status, 0);
-        if (status < 0)
-            error("as failed");
-    }
-    return 0;
 }
