@@ -744,7 +744,7 @@ static Node *read_float(Token *tok) {
         return ast_floattype(type_float, v);
     if (*end != '\0')
         errort(tok, "invalid character '%c': %s", *end, s);
-    return ast_floattype(type_double, v);
+    return ast_floattype(type_float, v);
 }
 
 static Node *read_number(Token *tok) {
