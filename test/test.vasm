@@ -1,36 +1,13 @@
 @main
-	r0 <- call .main
+	r0 <- call func.main
 	exit
-func .main 256
-	r1 <- fint 0
-@main.L0
-	r2 <- fint 10
-	fblt r1 r2 main.L5 main.L4
-@main.L5
-	r3 <- uint 0
-	jump main.L6
-@main.L4
-	r3 <- uint 1
-@main.L6
-	ubb r3 main.L2 main.L3
-@main.L3
-	r4 <- ftou r1
-	r5 <- uint 10
-	r6 <- umod r4 r5
-	r7 <- uint 48
-	r8 <- uadd r6 r7
-	putchar r8
-	r9 <- uint 1
-	r10 <- utof r9
-	r11 <- fadd r1 r10
-	r1 <- reg r11
-	jump main.L7
-@main.L2
-	jump main.L1
-@main.L7
-	jump main.L0
-@main.L1
-	r12 <- uint 0
-	ret r12
+@body.main
+	r1 <- uint 49
+	putchar r1
+	r2 <- uint 10
+	putchar r2
 	r0 <- uint 0
 	ret r0
+func func.main 3
+	jump body.main
+

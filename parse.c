@@ -2684,7 +2684,15 @@ static void read_decl_or_stmt(Vector *list) {
     if (tok->kind == TEOF)
         error("premature end of input");
     mark_location();
-    if (is_type(tok)) {
+    if (next_token(KVAR)) {
+        Token *name = get();
+        assert(name->kind == TIDENT);
+        assert(next_token('='));
+        Node *init = conv(read_assignment_expr());
+        Node *var = ast_lvar(init->ty, name->sval);
+        Vector *r = make_vector1(ast_init(init, init->ty, 0));
+        vec_push(list, ast_decl(var, r));
+    } if (is_type(tok)) {
         read_decl(list, false);
     } else if (next_token(KSTATIC_ASSERT)) {
         read_static_assert();

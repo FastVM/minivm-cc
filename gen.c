@@ -67,7 +67,7 @@ static void emit_ret()
 
 static void emit_label(char *label)
 {
-    fprintf(outputfp, "@%s%s\n", curfunc, label);
+    emit_noindent("@%s%s", curfunc, label);
 }
 
 static int emit_binop(Node *node)
@@ -244,7 +244,7 @@ static int emit_func_call(Node *node)
         return 0;
     } else {
         int ret = nregs++;
-        emit("r%i <- call .%s%s", ret, node->fname, args);
+        emit("r%i <- call func.%s%s", ret, node->fname, args);
         return ret;
     }
 }
@@ -345,7 +345,6 @@ static void emit_decl(Vector *inits, Node *var) {
 
 static int emit_expr(Node *node)
 {
-    printf("%i\n", node->kind);
     switch (node->kind)
     {
     case AST_GOTO:
@@ -396,19 +395,24 @@ static int emit_expr(Node *node)
 static void emit_func_prologue(Node *func)
 {
     if (!strcmp(func->fname, "main")) {
-        fprintf(outputfp, "@main\n");
-        emit("r0 <- call .main");
+        emit_noindent("@main");
+        emit("r0 <- call func.main");
         emit("exit");
     }
+    emit_noindent("@body.%s", func->fname);
     rettype = func->ty->rettype;
-    emit_noindent("func .%s 256", func->fname);
     locals = EMPTY_MAP;
     for (int i = 0; i < vec_len(func->params); i++) {
         Node *param = vec_get(func->params, i);
         map_put(&locals, param->varname, (void*)(size_t)(i+1));
     }
     curfunc = func->fname;
-    nregs = 1;
+    nregs = 1+vec_len(func->params);
+}
+
+static void emit_func_end(Node *func) {
+    emit_noindent("func func.%s %i", func->fname, nregs);
+    emit("jump body.%s\n", func->fname);
 }
 
 void emit_toplevel(Node *v)
@@ -418,6 +422,7 @@ void emit_toplevel(Node *v)
         emit_func_prologue(v);
         emit_expr(v->body);
         emit_ret();
+        emit_func_end(v);
     }
     else if (v->kind == AST_DECL)
     {
