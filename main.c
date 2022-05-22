@@ -14,34 +14,15 @@ static char *asmfile;
 static bool cpponly;
 static bool dontlink;
 static Buffer *cppdefs;
-static Vector *tmpfiles = &EMPTY_VECTOR;
 
 static void usage(int exitcode) {
     fprintf(exitcode ? stderr : stdout,
             "Usage: 8cc [ -E ][ -a ] [ -h ] <file>\n\n"
             "\n"
-            "  -I<path>          add to include path\n"
-            "  -E                print preprocessed source code\n"
-            "  -D name           Predefine name as a macro\n"
-            "  -D name=def\n"
-            "  -c                Do not run linker (default)\n"
-            "  -U name           Undefine name\n"
             "  -o filename       Output to the specified file\n"
-            "  -g                Do nothing at this moment\n"
-            "  -Wall             Enable all warnings\n"
-            "  -Werror           Make all warnings into errors\n"
-            "  -O<number>        Does nothing at this moment\n"
-            "  -m64              Output 64-bit code (default)\n"
-            "  -w                Disable all warnings\n"
             "  -h                print this help\n"
-            "\n"
-            "One of -a, -c, -E or -S must be specified.\n\n");
+            "\n");
     exit(exitcode);
-}
-
-static void delete_temp_files() {
-    for (int i = 0; i < vec_len(tmpfiles); i++)
-        unlink(vec_get(tmpfiles, i));
 }
 
 static char *base(char *path) {
@@ -67,54 +48,29 @@ static FILE *open_asmfile() {
     return fp;
 }
 
-static void parse_warnings_arg(char *s) {
-    if (!strcmp(s, "error"))
-        warning_is_error = true;
-    else if (strcmp(s, "all"))
-        error("unknown -W option: %s", s);
-}
-
-static void parse_m_arg(char *s) {
-    if (strcmp(s, "64"))
-        error("Only 64 is allowed for -m, but got %s", s);
-}
-
 static void parseopt(int argc, char **argv) {
     cppdefs = make_buffer();
-    for (;;) {
-        int opt = getopt(argc, argv, "I:ED:O:SU:W:acd:f:gm:o:hw");
-        if (opt == -1)
-            break;
-        switch (opt) {
-        case 'I': add_include_path(optarg); break;
-        case 'E': cpponly = true; break;
-        case 'D': {
-            char *p = strchr(optarg, '=');
-            if (p)
-                *p = ' ';
-            buf_printf(cppdefs, "#define %s\n", optarg);
-            break;
-        }
-        case 'O': break;
-        case 'U':
-            buf_printf(cppdefs, "#undef %s\n", optarg);
-            break;
-        case 'W': parse_warnings_arg(optarg); break;
-        case 'c': dontlink = true; break;
-        case 'm': parse_m_arg(optarg); break;
-        case 'g': break;
-        case 'o': outfile = optarg; break;
-        case 'w': enable_warning = false; break;
-        case 'h':
-            usage(0);
-        default:
-            usage(1);
+    int i = 1;
+    while (i < argc) {
+        char *arg = argv[i++];
+        if (arg[0] == '-') {
+            switch(arg[1]) {
+            case 'o':
+                outfile = argv[i++];
+                // asmfile = argv[i++];
+                break;
+            case 'h':
+                usage(0);
+                break;
+            default:
+                usage(1);
+            }
+        } else if (infile == NULL) {
+            infile = arg;
+        } else {
+            error("only one file at cli is possible");
         }
     }
-    if (optind != argc - 1)
-        usage(1);
-
-    infile = argv[optind];
 }
 
 char *get_base_file() {
@@ -138,8 +94,6 @@ static void preprocess() {
 
 int main(int argc, char **argv) {
     setbuf(stdout, NULL);
-    if (atexit(delete_temp_files))
-        perror("atexit");
     parseopt(argc, argv);
     lex_init(infile);
     cpp_init();

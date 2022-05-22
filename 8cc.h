@@ -7,6 +7,7 @@
 #include <inttypes.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <string.h>
 #include <stdio.h>
 #include <stdnoreturn.h>
 #include <time.h>
