@@ -366,8 +366,7 @@ void stream_stash(File *f);
 void stream_unstash(void);
 
 // gen.c
-void set_output_file(FILE *fp);
-void close_output_file(void);
+char *emit_end(void);
 void emit_toplevel(Node *v);
 
 // lex.c
@@ -377,7 +376,7 @@ void skip_cond_incl(void);
 char *read_header_file_name(bool *std);
 bool is_keyword(Token *tok, int c);
 void token_buffer_stash(Vector *buf);
-void token_buffer_unstash();
+void token_buffer_unstash(void);
 void unget_token(Token *tok);
 Token *lex_string(char *s);
 Token *lex(void);

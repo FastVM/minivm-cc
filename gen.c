@@ -11,34 +11,21 @@
 bool dumpsource = true;
 
 static int nregs;
-static FILE *outputfp;
+static Buffer *outbuf = &(Buffer){0,0,0};
 static const char *curfunc;
 static Map locals;
 static Type *rettype;
 
 static int emit_expr(Node *node);
 
-#define emit(...) emitf(__LINE__, "    " __VA_ARGS__)
-#define emit_noindent(...) emitf(__LINE__, __VA_ARGS__)
+#define newline() buf_printf(outbuf, "\n")
+#define emit_noindent(...) (buf_printf(outbuf, __VA_ARGS__), newline())
+#define emit(...) emit_noindent("    " __VA_ARGS__)
 
-void set_output_file(FILE *fp)
-{
-    outputfp = fp;
-}
-
-void close_output_file()
-{
-    fclose(outputfp);
-}
-
-static void emitf(int line, char *fmt, ...)
-{
-    va_list args;
-    va_start(args, fmt);
-    vfprintf(outputfp, fmt, args);
-    va_end(args);
-    fprintf(outputfp, "\n");
-    fflush(outputfp);
+char *emit_end(void) {
+    char *ret = outbuf->body;
+    outbuf = make_buffer();
+    return ret;
 }
 
 static int emit_conv_type(Type *from, Type *to, int reg)
@@ -456,7 +443,7 @@ static void regs_for_struct(char *name, Type *var, Vector *inits, int *n)
                 return;
             }
         }
-        for (int i = 0; i < vec_len(var->fields->key); i++)
+        for (int i = 0; var->fields && i < vec_len(var->fields->key); i++)
         {
             char *src = vec_get(var->fields->key, i);
             Type *ty2 = dict_get(var->fields, src);
@@ -564,8 +551,7 @@ static int emit_expr(Node *node)
         return ret;
     }
     case OP_CAST:
-        error("cast");
-        return 0;
+        return emit_conv(node);
     case AST_STRUCT_REF:
         return emit_struct_ref(node);
     case '=':
@@ -583,7 +569,7 @@ static int emit_expr(Node *node)
     case OP_LE:
         return emit_binop(node);
     default:
-        error("node->kind = %i", node->kind);
+        error("node(%i) = %s", node->kind, node2s(node));
     }
 }
 

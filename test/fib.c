@@ -19,7 +19,7 @@ int putn(int n) {
 }
 
 int main() {
-    putn(fib(35));
+    putn(fib(40));
     putchar('\n');
     return 0;
 }

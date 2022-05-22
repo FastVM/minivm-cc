@@ -568,7 +568,7 @@ void token_buffer_stash(Vector *buf) {
     vec_push(buffers, buf);
 }
 
-void token_buffer_unstash() {
+void token_buffer_unstash(void) {
     vec_pop(buffers);
 }
 
