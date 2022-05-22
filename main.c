@@ -7,12 +7,13 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include "8cc.h"
+#define VM_NO_FILE 1
+#include "vm/vm/asm.h"
 
 static char *infile;
-static char *outfile;
 static char *asmfile;
-static bool cpponly;
-static bool dontlink;
+static char *outfile = NULL;
+static bool run = false;
 static Buffer *cppdefs;
 
 static void usage(int exitcode) {
@@ -21,6 +22,7 @@ static void usage(int exitcode) {
             "\n"
             "  -o filename       Output to the specified file\n"
             "  -h                print this help\n"
+            "  -r                run the specified file\n"
             "\n");
     exit(exitcode);
 }
@@ -58,6 +60,9 @@ static void parseopt(int argc, char **argv) {
             case 'o':
                 outfile = argv[i++];
                 // asmfile = argv[i++];
+                break;
+            case 'r':
+                run = true;
                 break;
             case 'h':
                 usage(0);
@@ -102,9 +107,6 @@ int main(int argc, char **argv) {
     if (buf_len(cppdefs) > 0)
         read_from_string(buf_body(cppdefs));
 
-    if (cpponly)
-        preprocess();
-
     Vector *toplevels = read_toplevels();
     for (int i = 0; i < vec_len(toplevels); i++) {
         Node *v = vec_get(toplevels, i);
@@ -112,4 +114,18 @@ int main(int argc, char **argv) {
     }
 
     close_output_file();
+
+    if (run) {
+        const char *src = vm_asm_io_read(asmfile);
+        vm_asm_buf_t buf = vm_asm(src);
+        vm_free((void *)src);
+        if (buf.nops == 0) {
+            return 1;
+        }
+        int res = vm_run_arch_int(buf.nops, buf.ops);
+        if (res != 0) {
+            return 1;
+        }
+    }
+    return 0;
 }
