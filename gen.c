@@ -159,6 +159,38 @@ static int emit_binop(Node *node)
         emit("r%i <- %cmod r%i r%i", ret, typepre, lhs, rhs);
         return ret;
     }
+    case OP_LOGOR:
+    {
+        int ret = nregs++;
+        emit("r%i <- call func.__minivm_bits_or r1 r%i r%i", ret, lhs, rhs);
+        return ret;
+    }
+    case OP_LOGAND:
+    {
+        int ret = nregs++;
+        emit("r%i <- call func.__minivm_bits_and r1 r%i r%i", ret, lhs, rhs);
+        return ret;
+    }
+    case '^':
+    {
+        int ret = nregs++;
+        emit("r%i <- call func.__minivm_bits_xor r1 r%i r%i", ret, lhs, rhs);
+        return ret;
+    }
+    case OP_SHL:
+    case OP_SAL:
+    {
+        int ret = nregs++;
+        emit("r%i <- call func.__minivm_bits_shl r1 r%i r%i", ret, lhs, rhs);
+        return ret;
+    }
+    case OP_SHR:
+    case OP_SAR:
+    {
+        int ret = nregs++;
+        emit("r%i <- call func.__minivm_bits_shr r1 r%i r%i", ret, lhs, rhs);
+        return ret;
+    }
     case OP_EQ:
     {
         int ret = nregs++;
@@ -685,6 +717,11 @@ static int emit_expr(Node *node)
     case '>':
     case OP_GE:
     case OP_LE:
+    case '^':
+    case OP_LOGOR:
+    case OP_LOGAND:
+    case OP_SAL:
+    case OP_SAR:
         return emit_binop(node);
     default:
         error("node(%i) = %s", node->kind, node2s(node));
@@ -693,11 +730,11 @@ static int emit_expr(Node *node)
 
 static void emit_func_prologue(Node *func)
 {
-    if (!strcmp(func->fname, "main"))
+    if (!strcmp(func->fname, "_start"))
     {
         emit_noindent("@main");
         emit("r0 <- call lib.pool.init");
-        emit("r0 <- call func.main r0");
+        emit("r0 <- call func.%s r0", func->fname);
         emit("exit");
     }
     emit_noindent("func func.%s", func->fname, nregs);

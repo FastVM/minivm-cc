@@ -60,6 +60,9 @@ int main(int argc, char **argv) {
     setbuf(stdout, NULL);
     parseopt(argc, argv);
     Vector *asmbufs = &EMPTY_VECTOR;
+    vec_push(infiles, "rt/io.c");
+    vec_push(infiles, "rt/bits.c");
+    vec_push(infiles, "rt/start.c");
     vec_push(infiles, "rt/mem.asm");
     for (int i = 0; i < vec_len(infiles); i++) {
         infile = vec_get(infiles, i);
