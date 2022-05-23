@@ -366,7 +366,7 @@ void stream_stash(File *f);
 void stream_unstash(void);
 
 // gen.c
-char *emit_end(void);
+Buffer *emit_end(void);
 void emit_toplevel(Node *v);
 
 // lex.c

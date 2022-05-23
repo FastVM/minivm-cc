@@ -22,8 +22,8 @@ static int emit_expr(Node *node);
 #define emit_noindent(...) (buf_printf(outbuf, __VA_ARGS__), newline())
 #define emit(...) emit_noindent("    " __VA_ARGS__)
 
-char *emit_end(void) {
-    char *ret = outbuf->body;
+Buffer *emit_end(void) {
+    Buffer *ret = outbuf;
     outbuf = make_buffer();
     return ret;
 }

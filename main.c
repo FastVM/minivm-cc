@@ -10,13 +10,13 @@
 #define VM_NO_FILE 1
 #include "vm/vm/asm.h"
 
-static char *infile;
+static Vector *infiles = &EMPTY_VECTOR;
 static char *asmfile;
 static Buffer *cppdefs;
 
 static void usage(int exitcode) {
     fprintf(exitcode ? stderr : stdout,
-            "Usage: 8cc <file>\n\n"
+            "Usage: minivm-cc <file>\n\n"
             "\n"
             "  -h                print this help\n"
             "\n");
@@ -36,50 +36,62 @@ static void parseopt(int argc, char **argv) {
             default:
                 usage(1);
             }
-        } else if (infile == NULL) {
-            infile = arg;
         } else {
-            error("only one file at cli is possible");
+            vec_push(infiles, arg);
         }
     }
 }
 
-char *get_base_file() {
-    return infile;
+static char *filetype(char *name) {
+    int where = strlen(name)-1;
+    while (where > 0 && name[where] != '.') {
+        where -= 1;
+    }
+    return &name[where];
 }
 
-static void preprocess() {
-    for (;;) {
-        Token *tok = read_token();
-        if (tok->kind == TEOF)
-            break;
-        if (tok->bol)
-            printf("\n");
-        if (tok->space)
-            printf(" ");
-        printf("%s", tok2s(tok));
-    }
-    printf("\n");
-    exit(0);
+char *infile;
+char *get_base_file(void) {
+    return infile;
 }
 
 int main(int argc, char **argv) {
     emit_end();
     setbuf(stdout, NULL);
     parseopt(argc, argv);
-    lex_init(infile);
-    cpp_init();
-    parse_init();
-    if (buf_len(cppdefs) > 0)
-        read_from_string(buf_body(cppdefs));
+    Vector *asmbufs = &EMPTY_VECTOR;
+    for (int i = 0; i < vec_len(infiles); i++) {
+        infile = vec_get(infiles, i);
+        char *ext = filetype(infile);
+        if (!strcmp(ext, ".c") || !strcmp(ext, ".h") || !strcmp(ext, ".i")) {
+            lex_init(infile);
+            cpp_init();
+            parse_init();
+            if (buf_len(cppdefs) > 0)
+                read_from_string(buf_body(cppdefs));
 
-    Vector *toplevels = read_toplevels();
-    for (int i = 0; i < vec_len(toplevels); i++) {
-        Node *v = vec_get(toplevels, i);
-        emit_toplevel(v);
+            Vector *toplevels = read_toplevels();
+            for (int i = 0; i < vec_len(toplevels); i++) {
+                Node *v = vec_get(toplevels, i);
+                emit_toplevel(v);
+            }
+        } else if (!strcmp(ext, ".vasm") || !strcmp(ext, ".asm") || !strcmp(ext, ".vs") || !strcmp(ext, ".s")) {
+            Buffer *asmbuf = make_buffer();
+            FILE *file = fopen(infile, "r");
+            while (!feof(file)) {
+                char buf[2048];
+                int size = fread(buf, sizeof(char), 2048, file);
+                buf_printf(asmbuf, "%.*s", size, buf);
+            }
+            fclose(file);
+            vec_push(asmbufs, asmbuf->body);
+        }
     }
-    char *src = emit_end();
-    vm_asm_buf_t buf = vm_asm(src);
+    Buffer *src = emit_end();
+    for (int i = 0; i < vec_len(asmbufs); i++) {
+        buf_printf(src, "\n%s\n", vec_get(asmbufs, i));
+    }
+    vm_asm_buf_t buf = vm_asm(src->body);
     if (buf.nops == 0) {
         return 1;
     }
