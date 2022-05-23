@@ -11,7 +11,7 @@
 bool dumpsource = true;
 
 static int nregs;
-static Buffer *outbuf = &(Buffer){0,0,0};
+static Buffer *outbuf = &(Buffer){0, 0, 0};
 static const char *curfunc;
 static Map locals;
 static Type *rettype;
@@ -22,21 +22,32 @@ static int emit_expr(Node *node);
 #define emit_noindent(...) (buf_printf(outbuf, __VA_ARGS__), newline())
 #define emit(...) emit_noindent("    " __VA_ARGS__)
 
-Buffer *emit_end(void) {
+Buffer *emit_end(void)
+{
     Buffer *ret = outbuf;
     outbuf = make_buffer();
     return ret;
 }
 
+static bool kind_is_int(int kind)
+{
+    return kind == KIND_PTR || kind == KIND_BOOL || kind == KIND_CHAR || kind == KIND_SHORT || kind == KIND_INT || kind == KIND_LONG || kind == KIND_LLONG || kind == KIND_ENUM || kind == KIND_PTR;
+}
+
+static bool kind_is_float(int kind)
+{
+    return kind == KIND_FLOAT || kind == KIND_DOUBLE || kind == KIND_LDOUBLE;
+}
+
 static int emit_conv_type(Type *from, Type *to, int reg)
 {
-    if (from->kind == KIND_INT && to->kind == KIND_FLOAT)
+    if (kind_is_int(from->kind) && kind_is_float(to->kind))
     {
         int next = nregs++;
         emit("r%i <- utof r%i", next, reg);
         return next;
     }
-    if (from->kind == KIND_FLOAT && to->kind == KIND_INT)
+    if (kind_is_float(from->kind) && kind_is_int(to->kind))
     {
         int next = nregs++;
         emit("r%i <- ftou r%i", next, reg);
@@ -71,6 +82,14 @@ static int emit_assign(Node *node)
         int out = (int)(size_t)map_get(&locals, name);
         emit("r%i <- reg r%i", out, rhs);
         return out;
+    }
+    else if (node->left->kind == AST_DEREF)
+    {
+        int ret = nregs++;
+        int addr = emit_expr(node->left->operand);
+        int val = emit_expr(node->right);
+        emit("r%i <- call lib.pool.set r1 r%i r%i", ret, addr, val);
+        return val;
     }
     else
     {
@@ -241,7 +260,7 @@ static int emit_struct_all(Type *ty, char *path)
     {
         int reg = nregs++;
         emit("r%i <- uint 0", reg);
-        for (int i = vec_len(ty->fields->key)-1; i >= 0; i--)
+        for (int i = vec_len(ty->fields->key) - 1; i >= 0; i--)
         {
             char *name = vec_get(ty->fields->key, i);
             Type *ent = dict_get(ty->fields, name);
@@ -315,8 +334,9 @@ static void emit_branch_bool(Node *node, char *zero, char *nonzero)
     {
         int lhs = emit_expr(node->left);
         int rhs = emit_expr(node->right);
-        char typepre = node->left->ty->kind == KIND_INT ? 'u' : 'f';
-        switch (node->kind) {
+        char typepre = kind_is_int(node->left->ty->kind) ? 'u' : 'f';
+        switch (node->kind)
+        {
         case OP_EQ:
             emit("%cbeq r%i r%i %s%s %s%s", typepre, lhs, rhs, curfunc, zero, curfunc, nonzero);
             break;
@@ -336,7 +356,9 @@ static void emit_branch_bool(Node *node, char *zero, char *nonzero)
             emit("%cblt r%i r%i %s%s %s%s", typepre, lhs, rhs, curfunc, nonzero, curfunc, zero);
             break;
         }
-    } else {
+    }
+    else
+    {
         int nth = emit_expr(node);
         emit("ubb r%i %s%s %s%s", nth, curfunc, zero, curfunc, nonzero);
     }
@@ -517,10 +539,20 @@ static int emit_struct_ref(Node *node)
     return 124;
 }
 
+static int emit_deref(Node *node)
+{
+    int outreg = nregs++;
+    int from = emit_expr(node->operand);
+    emit("r%i <- call lib.pool.get r1 r%i", outreg, from);
+    return outreg;
+}
+
 static int emit_expr(Node *node)
 {
     switch (node->kind)
     {
+    case AST_DEREF:
+        return emit_deref(node);
     case AST_GOTO:
         emit("jump %s%s", curfunc, node->newlabel);
         return 0;

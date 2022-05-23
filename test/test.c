@@ -20,13 +20,28 @@ int putn(int n) {
     }
 }
 
+int *alloc(int size) {
+    int where = __minivm_get(1);
+    __minivm_set(1, where + size);
+    return (int*) where;
+}
+
+void entry(void) {
+    // int memsize = 10;
+    // int *x = alloc(memsize);
+    // for (int i = 0; i < memsize; i+=1) {
+    //     x[i] = i;
+    // }
+    // for (int i = 0; i < memsize; i+=1) {
+    //     putn(x[i]);
+    //     putchar('\n');
+    // }
+    putn(sizeof(int));
+    putchar('\n');
+}
+
 int main() {
-    putchar('\n');
-    putchar('(');
-    __minivm_set(100, 1234);
-    putchar(':');
-    putn(__minivm_get(100));
-    putchar(')');
-    putchar('\n');
+    __minivm_set(1, 2);
+    entry();
     return 0;
 }

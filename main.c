@@ -60,6 +60,7 @@ int main(int argc, char **argv) {
     setbuf(stdout, NULL);
     parseopt(argc, argv);
     Vector *asmbufs = &EMPTY_VECTOR;
+    vec_push(infiles, "rt/mem.asm");
     for (int i = 0; i < vec_len(infiles); i++) {
         infile = vec_get(infiles, i);
         char *ext = filetype(infile);
@@ -78,6 +79,10 @@ int main(int argc, char **argv) {
         } else if (!strcmp(ext, ".vasm") || !strcmp(ext, ".asm") || !strcmp(ext, ".vs") || !strcmp(ext, ".s")) {
             Buffer *asmbuf = make_buffer();
             FILE *file = fopen(infile, "r");
+            if (file == NULL) {
+                error("no such file: %s\n", infile);
+                return 1;
+            }
             while (!feof(file)) {
                 char buf[2048];
                 int size = fread(buf, sizeof(char), 2048, file);
