@@ -241,13 +241,13 @@ static int emit_struct_all(Type *ty, char *path)
     {
         int reg = nregs++;
         emit("r%i <- uint 0", reg);
-        for (int i = 0; i < vec_len(ty->fields->key); i++)
+        for (int i = vec_len(ty->fields->key)-1; i >= 0; i--)
         {
             char *name = vec_get(ty->fields->key, i);
             Type *ent = dict_get(ty->fields, name);
             char *nextpath = format("%s.%s", path, name);
             int val = emit_struct_all(ent, nextpath);
-            emit("r%i <- pair r%i r%i", reg, val, reg);
+            emit("r%i <- cons r%i r%i", reg, val, reg);
         }
         return reg;
     }
@@ -277,6 +277,18 @@ static int emit_func_call(Node *node)
     {
         return 4984;
     }
+    else if (!strcmp(node->fname, "__minivm_get"))
+    {
+        int ret = nregs++;
+        emit("r%i <- call lib.pool.get r1%s", ret, args);
+        return ret;
+    }
+    else if (!strcmp(node->fname, "__minivm_set"))
+    {
+        int ret = nregs++;
+        emit("r%i <- call lib.pool.set r1%s", ret, args);
+        return ret;
+    }
     else if (!strcmp(node->fname, "putchar"))
     {
         emit("putchar%s", args);
@@ -285,7 +297,7 @@ static int emit_func_call(Node *node)
     else
     {
         int ret = nregs++;
-        emit("r%i <- call func.%s%s", ret, node->fname, args);
+        emit("r%i <- call func.%s r1%s", ret, node->fname, args);
         return ret;
     }
 }
@@ -410,15 +422,15 @@ static void regs_for_pair_struct(char *name, Type *var, int reg)
 {
     if (var->kind == KIND_STRUCT)
     {
-        for (int i = vec_len(var->fields->key) - 1; i >= 0; i--)
+        for (int i = 0; i < vec_len(var->fields->key); i++)
         {
             int r = nregs++;
             char *key = vec_get(var->fields->key, i);
             char *nextname = format("%s.%s", name, key);
-            emit("r%i <- first r%i", r, reg);
+            emit("r%i <- getcar r%i", r, reg);
             regs_for_pair_struct(nextname, dict_get(var->fields, key), r);
             int nextreg = nregs++;
-            emit("r%i <- second r%i", nextreg, reg);
+            emit("r%i <- getcdr r%i", nextreg, reg);
             reg = nextreg;
         }
     }
@@ -490,16 +502,16 @@ static int emit_struct_ref(Node *node)
 {
     int val = emit_expr(node->struc);
     Type *type = node->struc->ty;
-    for (int i = vec_len(type->fields->key) - 1; i >= 0; i--)
+    for (int i = 0; i < vec_len(type->fields->key); i++)
     {
         char *name = vec_get(type->fields->key, i);
         int reg = nregs++;
         if (!strcmp(name, node->field))
         {
-            emit("r%i <- first r%i", reg, val);
+            emit("r%i <- getcar r%i", reg, val);
             return reg;
         }
-        emit("r%i <- second r%i", reg, val);
+        emit("r%i <- getcdr r%i", reg, val);
         val = reg;
     }
     return 124;
@@ -578,24 +590,25 @@ static void emit_func_prologue(Node *func)
     if (!strcmp(func->fname, "main"))
     {
         emit_noindent("@main");
-        emit("r0 <- call func.main");
+        emit("r0 <- call lib.pool.init");
+        emit("r0 <- call func.main r0");
         emit("exit");
     }
     emit_noindent("func func.%s", func->fname, nregs);
     rettype = func->ty->rettype;
     locals = EMPTY_MAP;
-    nregs = vec_len(func->params) + 1;
+    nregs = vec_len(func->params) + 2;
     for (int i = 0; i < vec_len(func->params); i++)
     {
         Node *param = vec_get(func->params, i);
+        int reg = i + 2;
         if (param->ty->kind == KIND_STRUCT)
         {
-            int reg = i + 1;
             regs_for_pair_struct(param->varname, param->ty, reg);
         }
         else
         {
-            map_put(&locals, param->varname, (void *)(size_t)(i + 1));
+            map_put(&locals, param->varname, (void *)(size_t)reg);
         }
     }
     curfunc = func->fname;

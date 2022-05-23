@@ -42,7 +42,8 @@ static void extend(Vector *vec, int delta) {
         return;
     int nelem = max(roundup(vec->len + delta), MIN_SIZE);
     void *newbody = malloc(sizeof(void *) * nelem);
-    memcpy(newbody, vec->body, sizeof(void *) * vec->len);
+    if (vec->len != 0)
+        memcpy(newbody, vec->body, sizeof(void *) * vec->len);
     vec->body = newbody;
     vec->nalloc = nelem;
 }

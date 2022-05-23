@@ -35,7 +35,7 @@ float vector2_sum(vector2_t val) {
     return val.x + val.y;
 }
 
-#define vector2_op1(op_, x_) ({vector2_t x=x_;(vector2_t) {op_ y.x, op_ y.y};})
+#define vector2_op1(op_, x_) ({vector2_t x=x_;(vector2_t) {op_ x.x, op_ x.y};})
 #define vector2_op2(op_, x_, y_) ({vector2_t x=x_;vector2_t y=y_;(vector2_t) {x.x op_ y.x, x.y op_ y.y};})
 
 vector2_t vector2_add(vector2_t lhs, vector2_t rhs) {
@@ -49,7 +49,7 @@ vector2_t vector2_sub(vector2_t lhs, vector2_t rhs) {
 int main() {
     vector2_t v1 = { 100, 200 };
     vector2_t v2 = {  10,  20 };
-    vector2_t va = vector2_sub(v1, v2);
+    vector2_t va = vector2_op2(-, v1, v2);
     vector2_println(v1);
     vector2_println(v2);
     vector2_println(va);
