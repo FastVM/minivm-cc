@@ -27,16 +27,15 @@ int *alloc(int size) {
 }
 
 void entry(void) {
-    // int memsize = 10;
-    // int *x = alloc(memsize);
-    // for (int i = 0; i < memsize; i+=1) {
-    //     x[i] = i;
-    // }
-    // for (int i = 0; i < memsize; i+=1) {
-    //     putn(x[i]);
-    //     putchar('\n');
-    // }
-    putn(sizeof(int));
+    int y = 0;
+    for (int i = 0; i < 1000; i+=1) {
+        int *x = alloc(1);
+        *x = i + 1;
+        for (int j = 0; j < 1000; j+=1) {
+            y += *x ? 1 : 0;
+        }
+    }
+    putn(__minivm_get(1));
     putchar('\n');
 }
 

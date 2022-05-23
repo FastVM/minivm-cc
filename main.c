@@ -96,6 +96,11 @@ int main(int argc, char **argv) {
     for (int i = 0; i < vec_len(asmbufs); i++) {
         buf_printf(src, "\n%s\n", vec_get(asmbufs, i));
     }
+    {
+        FILE *out = fopen("a.vasm", "w");
+        fwrite(src->body, sizeof(char), src->len, out);
+        fclose(out);
+    }
     // printf("%s\n", src->body);
     vm_asm_buf_t buf = vm_asm(src->body);
     if (buf.nops == 0) {

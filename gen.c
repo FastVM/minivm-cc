@@ -77,19 +77,41 @@ static int emit_assign(Node *node)
 {
     if (node->left->kind == AST_STRUCT_REF)
     {
-        char *name = pathof_node(node->left);
-        int rhs = emit_expr(node->right);
-        int out = (int)(size_t)map_get(&locals, name);
-        emit("r%i <- reg r%i", out, rhs);
-        return out;
+        if (node->left->struc->kind == AST_DEREF) {
+            Node *struc = node->left->struc;
+            char *field = node->left->field;
+            int offset = 0;
+            for (int i = 0; i < vec_len(struc->ty->fields->key); i++) {
+                char *check = vec_get(struc->ty->fields->key, i);
+                if (!strcmp(field, check)) {
+                    offset = i;
+                    break;
+                }
+            }
+            int baseptr = emit_expr(struc->operand);
+            int value = emit_expr(node->right);
+            emit("r0 <- uint %i", offset);
+            emit("r0 <- uadd r0 r%i", baseptr);
+            emit("r0 <- call lib.pool.set r1 r0 r%i", value);
+        } else {
+            char *name = pathof_node(node->left);
+            int rhs = emit_expr(node->right);
+            int out = (int)(size_t)map_get(&locals, name);
+            emit("r%i <- reg r%i", out, rhs);
+            return out;
+        }
     }
     else if (node->left->kind == AST_DEREF)
     {
-        int ret = nregs++;
-        int addr = emit_expr(node->left->operand);
-        int val = emit_expr(node->right);
-        emit("r%i <- call lib.pool.set r1 r%i r%i", ret, addr, val);
-        return val;
+        if (node->left->ty->kind == KIND_STRUCT) {
+            error("struct assign");
+        } else {
+            int ret = nregs++;
+            int addr = emit_expr(node->left->operand);
+            int val = emit_expr(node->right);
+            emit("r%i <- call lib.pool.set r1 r%i r%i", ret, addr, val);
+            return val;
+        }
     }
     else
     {
@@ -522,29 +544,81 @@ static int emit_lvar(Node *node)
 
 static int emit_struct_ref(Node *node)
 {
-    int val = emit_expr(node->struc);
-    Type *type = node->struc->ty;
-    for (int i = 0; i < vec_len(type->fields->key); i++)
-    {
-        char *name = vec_get(type->fields->key, i);
-        int reg = nregs++;
-        if (!strcmp(name, node->field))
-        {
-            emit("r%i <- getcar r%i", reg, val);
-            return reg;
+    if (node->struc->kind == AST_DEREF) {
+        Node *struc = node->struc;
+        char *field = node->field;
+        int offset = 0;
+        for (int i = 0; i < vec_len(struc->ty->fields->key); i++) {
+            char *check = vec_get(struc->ty->fields->key, i);
+            if (!strcmp(field, check)) {
+                offset = i;
+                break;
+            }
         }
-        emit("r%i <- getcdr r%i", reg, val);
-        val = reg;
+        int baseptr = emit_expr(struc->operand);
+        int ret = nregs++;
+        emit("r0 <- uint %i", offset);
+        emit("r0 <- uadd r0 r%i", baseptr);
+        emit("r%i <- call lib.pool.get r1 r0", ret);
+        return ret;
+    } else {
+        int val = emit_expr(node->struc);
+        Type *type = node->struc->ty;
+        for (int i = 0; i < vec_len(type->fields->key); i++)
+        {
+            char *name = vec_get(type->fields->key, i);
+            int reg = nregs++;
+            if (!strcmp(name, node->field))
+            {
+                emit("r%i <- getcar r%i", reg, val);
+                return reg;
+            }
+            emit("r%i <- getcdr r%i", reg, val);
+            val = reg;
+        }
+        return -1;
     }
-    return 124;
 }
+
+static int emit_struct_all_mem(Type *ty, int addreg, int *offset)
+{
+    if (ty->kind == KIND_STRUCT)
+    {
+        int reg = nregs++;
+        emit("r%i <- uint 0", reg);
+        for (int i = vec_len(ty->fields->key) - 1; i >= 0; i--)
+        {
+            char *name = vec_get(ty->fields->key, i);
+            Type *ent = dict_get(ty->fields, name);
+            int val = emit_struct_all_mem(ent, addreg, offset);
+            emit("r%i <- cons r%i r%i", reg, val, reg);
+        }
+        return reg;
+    }
+    else
+    {
+        int rreg = nregs++;
+        emit("r0 <- uint %i", *offset);
+        emit("r0 <- uadd r0 r%i", rreg, addreg);
+        emit("r%i <- call lib.pool.get r1 r0", rreg, rreg);
+        *offset += 1;
+        return rreg;
+    }
+}
+
 
 static int emit_deref(Node *node)
 {
-    int outreg = nregs++;
-    int from = emit_expr(node->operand);
-    emit("r%i <- call lib.pool.get r1 r%i", outreg, from);
-    return outreg;
+    if (node->ty->kind == KIND_STRUCT) {
+        int from = emit_expr(node->operand);
+        int n = 0;
+        return emit_struct_all_mem(node->ty, from, &n);
+    } else {
+        int outreg = nregs++;
+        int from = emit_expr(node->operand);
+        emit("r%i <- call lib.pool.get r1 r%i", outreg, from);
+        return outreg;
+    }
 }
 
 static int emit_expr(Node *node)
