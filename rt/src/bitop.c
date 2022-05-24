@@ -14,9 +14,9 @@ int __minivm_bits_shr(int val, int bits) {
 int __minivm_bits_xor(int lhs, int rhs) {
     int ret = 0;
     int bit = 1;
-    while (1) {
+    for (int i = 0; i < 32; i+=1) {
         int nextbit = bit + bit;
-        if (bit > lhs && bit > rhs) {
+        if (bit >= lhs && bit >= rhs) {
             return ret;
         }
         if ((lhs % bit > nextbit) != (rhs % bit > nextbit)) {
@@ -29,9 +29,9 @@ int __minivm_bits_xor(int lhs, int rhs) {
 int __minivm_bits_or(int lhs, int rhs) {
     int ret = 0;
     int bit = 1;
-    while (1) {
+    for (int i = 0; i < 32; i+=1) {
         int nextbit = bit + bit;
-        if (bit > lhs && bit > rhs) {
+        if (bit >= lhs && bit >= rhs) {
             return ret;
         }
         if ((lhs % bit > nextbit) || (rhs % bit > nextbit)) {
@@ -44,9 +44,9 @@ int __minivm_bits_or(int lhs, int rhs) {
 int __minivm_bits_and(int lhs, int rhs) {
     int ret = 0;
     int bit = 1;
-    while (1) {
+    for (int i = 0; i < 32; i+=1) {
         int nextbit = bit + bit;
-        if (bit > lhs && bit > rhs) {
+        if (bit >= lhs && bit >= rhs) {
             return ret;
         }
         if ((lhs % bit > nextbit) && (rhs % bit > nextbit)) {

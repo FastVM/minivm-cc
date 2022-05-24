@@ -8,3 +8,4 @@ stage?
 a.out
 .vscode
 minivm-cc
+test/real

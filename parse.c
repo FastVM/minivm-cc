@@ -424,7 +424,7 @@ static bool is_string(Type *ty) {
 
 static void ensure_lvalue(Node *node) {
     switch (node->kind) {
-    case AST_LVAR: case AST_GVAR: case AST_DEREF: case AST_STRUCT_REF:
+    case AST_LVAR: case AST_GVAR: case AST_DEREF: case AST_STRUCT_REF: case AST_CONV:
         return;
     default:
         error("lvalue expected, but got %s", node2s(node));

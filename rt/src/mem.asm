@@ -20,7 +20,7 @@ func lib.pool.fillcdr
     ret r1
 
 func lib.pool.get
-    r4 <- uint 22
+    r4 <- uint 32
     r3 <- uint 1
 @lib.pool.get.loop
     r0 <- uint 1
@@ -51,7 +51,7 @@ func lib.pool.get
 end
 
 func lib.pool.set
-    r4 <- uint 22
+    r4 <- uint 32
     r5 <- uint 1
 @lib.pool.set.loop
     r0 <- uint 1

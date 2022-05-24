@@ -14,7 +14,7 @@ static int nregs;
 static Buffer *outbuf = &(Buffer){0, 0, 0};
 static const char *curfunc;
 static Map locals;
-static Type *rettype;
+static Type *rettype; 
 
 static int emit_expr(Node *node);
 
@@ -61,6 +61,42 @@ static void emit_label(char *label)
     emit_noindent("@%s%s", curfunc, label);
 }
 
+static void emit_branch_bool(Node *node, char *zero, char *nonzero)
+{
+    if (node->kind == '<' || node->kind == '>' || node->kind == OP_GE || node->kind == OP_LE || node->kind == OP_EQ || node->kind == OP_NE)
+    {
+        int lhs = emit_expr(node->left);
+        int rhs = emit_expr(node->right);
+        char typepre = kind_is_int(node->left->ty->kind) ? 'u' : 'f';
+        switch (node->kind)
+        {
+        case OP_EQ:
+            emit("%cbeq r%i r%i %s%s %s%s", typepre, lhs, rhs, curfunc, zero, curfunc, nonzero);
+            break;
+        case OP_NE:
+            emit("%cbeq r%i r%i %s%s %s%s", typepre, lhs, rhs, curfunc, nonzero, curfunc, zero);
+            break;
+        case '<':
+            emit("%cblt r%i r%i %s%s %s%s", typepre, lhs, rhs, curfunc, zero, curfunc, nonzero);
+            break;
+        case '>':
+            emit("%cblt r%i r%i %s%s %s%s", typepre, rhs, lhs, curfunc, zero, curfunc, nonzero);
+            break;
+        case OP_LE:
+            emit("%cblt r%i r%i %s%s %s%s", typepre, rhs, lhs, curfunc, nonzero, curfunc, zero);
+            break;
+        case OP_GE:
+            emit("%cblt r%i r%i %s%s %s%s", typepre, lhs, rhs, curfunc, nonzero, curfunc, zero);
+            break;
+        }
+    }
+    else
+    {
+        int nth = emit_expr(node);
+        emit("ubb r%i %s%s %s%s", nth, curfunc, zero, curfunc, nonzero);
+    }
+}
+
 static char *pathof_node(Node *node)
 {
     if (node->kind == AST_STRUCT_REF)
@@ -104,7 +140,7 @@ static int emit_assign(Node *node)
     else if (node->left->kind == AST_DEREF)
     {
         if (node->left->ty->kind == KIND_STRUCT) {
-            error("struct assign");
+            error("*struct = .* :: %s\n\t%s", node2s(node->left), node2s(node->right));
         } else {
             int ret = nregs++;
             int addr = emit_expr(node->left->operand);
@@ -124,6 +160,60 @@ static int emit_assign(Node *node)
 
 static int emit_binop(Node *node)
 {
+    if (node->left->ty->kind == KIND_PTR) {
+        if (node->kind == '+') {
+            int lhs = emit_expr(node->left);
+            int rhs = emit_expr(node->right);
+            int rreg = nregs++;
+            emit("r0 <- uint %i", node->left->ty->ptr->size);
+            emit("r0 <- umul r0 r%i", rhs);
+            emit("r%i <- uadd r%i r0", rreg, lhs);
+            return rreg;
+        }
+        if (node->kind == '-') {
+            int lhs = emit_expr(node->left);
+            int rhs = emit_expr(node->right);
+            int rreg = nregs++;
+            emit("r0 <- uint %i", node->left->ty->size);
+            emit("r%i <- umul r%i r%i", rreg, rhs, rhs);
+            emit("r%i <- usub r%i r%i", rreg, lhs, rhs);
+            return rreg;
+        }
+    }
+    if (node->kind == OP_LOGAND) {
+        int ret = nregs++;
+        char *end = make_label();
+        char *f0 = make_label();
+        char *t1 = make_label();
+        char *t2 = make_label();
+        emit_branch_bool(node->left, f0, t1);
+        emit_label(f0);
+        emit("r%i <- uint 0", ret);
+        emit("jump %s%s", curfunc, end);
+        emit_label(t1);
+        emit_branch_bool(node->right, f0, t2);
+        emit_label(t2);
+        emit("r%i <- uint 1", ret);
+        emit_label(end);
+        return ret;
+    }
+    if (node->kind == OP_LOGOR) {
+        int ret = nregs++;
+        char *end = make_label();
+        char *f1 = make_label();
+        char *f2 = make_label();
+        char *t1 = make_label();
+        emit_branch_bool(node->left, f1, t1);
+        emit_label(f2);
+        emit("r%i <- uint 0", ret);
+        emit("jump %s%s", curfunc, end);
+        emit_label(f1);
+        emit_branch_bool(node->right, f2, t1);
+        emit_label(t1);
+        emit("r%i <- uint 1", ret);
+        emit_label(end);
+        return ret;
+    }
     int lhs = emit_expr(node->left);
     int rhs = emit_expr(node->right);
     char typepre = node->left->ty->kind == KIND_INT ? 'u' : 'f';
@@ -165,7 +255,7 @@ static int emit_binop(Node *node)
         emit("r%i <- call func.__minivm_bits_or r1 r%i r%i", ret, lhs, rhs);
         return ret;
     }
-    case OP_LOGAND:
+    case '&':
     {
         int ret = nregs++;
         emit("r%i <- call func.__minivm_bits_and r1 r%i r%i", ret, lhs, rhs);
@@ -382,41 +472,6 @@ static int emit_conv(Node *node)
     return reg2;
 }
 
-static void emit_branch_bool(Node *node, char *zero, char *nonzero)
-{
-    if (node->kind == '<' || node->kind == '>' || node->kind == OP_GE || node->kind == OP_LE || node->kind == OP_EQ || node->kind == OP_NE)
-    {
-        int lhs = emit_expr(node->left);
-        int rhs = emit_expr(node->right);
-        char typepre = kind_is_int(node->left->ty->kind) ? 'u' : 'f';
-        switch (node->kind)
-        {
-        case OP_EQ:
-            emit("%cbeq r%i r%i %s%s %s%s", typepre, lhs, rhs, curfunc, zero, curfunc, nonzero);
-            break;
-        case OP_NE:
-            emit("%cbeq r%i r%i %s%s %s%s", typepre, lhs, rhs, curfunc, nonzero, curfunc, zero);
-            break;
-        case '<':
-            emit("%cblt r%i r%i %s%s %s%s", typepre, lhs, rhs, curfunc, zero, curfunc, nonzero);
-            break;
-        case '>':
-            emit("%cblt r%i r%i %s%s %s%s", typepre, rhs, lhs, curfunc, zero, curfunc, nonzero);
-            break;
-        case OP_LE:
-            emit("%cblt r%i r%i %s%s %s%s", typepre, rhs, lhs, curfunc, nonzero, curfunc, zero);
-            break;
-        case OP_GE:
-            emit("%cblt r%i r%i %s%s %s%s", typepre, lhs, rhs, curfunc, nonzero, curfunc, zero);
-            break;
-        }
-    }
-    else
-    {
-        int nth = emit_expr(node);
-        emit("ubb r%i %s%s %s%s", nth, curfunc, zero, curfunc, nonzero);
-    }
-}
 
 static void emit_if(Node *node)
 {
@@ -570,7 +625,8 @@ static int emit_lvar(Node *node)
     }
     else
     {
-        return (int)(size_t)map_get(&locals, node->varname);
+        int reg = (int)(size_t)map_get(&locals, node->varname);
+        return reg;
     }
 }
 
@@ -718,10 +774,12 @@ static int emit_expr(Node *node)
     case OP_GE:
     case OP_LE:
     case '^':
-    case OP_LOGOR:
-    case OP_LOGAND:
+    case '|':
+    case '&':
     case OP_SAL:
     case OP_SAR:
+    case OP_LOGAND:
+    case OP_LOGOR:
         return emit_binop(node);
     default:
         error("node(%i) = %s", node->kind, node2s(node));
@@ -769,7 +827,7 @@ void emit_toplevel(Node *v)
     }
     else if (v->kind == AST_DECL)
     {
-        error("internal error");
+        error("unimplemented: global variable : %s", node2s(v));
     }
     else
     {
