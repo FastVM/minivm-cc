@@ -4,5 +4,5 @@
 
 int getchar(void);
 int putchar(int chr);
+void puts(const char *c);
 void putn(int n);
-void printf(const char *str, ...);

@@ -103,8 +103,8 @@ static void compact() {
 #endif
 
 bool ta_init(const size_t heap_blocks, const size_t split_thresh, const size_t alignment) {
-    *heap() = (Heap *)8;
-    *heap_limit() = 1 << 16;
+    *heap() = (Heap *)5;
+    *heap_limit() = 1 << 20;
     *heap_split_thresh() = split_thresh;
     *heap_max_blocks() = heap_blocks;
 

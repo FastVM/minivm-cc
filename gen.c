@@ -438,7 +438,7 @@ static int emit_func_call(Node *node)
     const char *args = emit_args(node->args, node->ftype->params);
     if (node->kind == AST_FUNCPTR_CALL)
     {
-        return 4984;
+        error("funcptr call");
     }
     else if (!strcmp(node->fname, "__minivm_get"))
     {
@@ -625,6 +625,7 @@ static int emit_lvar(Node *node)
     }
     else
     {
+        int outreg = nregs++;
         int reg = (int)(size_t)map_get(&locals, node->varname);
         return reg;
     }
@@ -709,10 +710,26 @@ static int emit_deref(Node *node)
     }
 }
 
+static int emit_label_addr(Node *node) {
+    int outreg = nregs++;
+    emit("r%i <- addr %s%s", outreg, curfunc, node->newlabel);
+    return outreg;
+}
+
+static void emit_computed_goto(Node *node) {
+    int reg = emit_expr(node->operand);
+    emit("djump r%i", reg);
+}
+
 static int emit_expr(Node *node)
 {
     switch (node->kind)
     {
+    case AST_COMPUTED_GOTO:
+        emit_computed_goto(node);
+        return 0;
+    case OP_LABEL_ADDR:
+        return emit_label_addr(node);
     case AST_DEREF:
         return emit_deref(node);
     case AST_GOTO:
