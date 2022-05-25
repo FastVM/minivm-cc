@@ -18,17 +18,17 @@ typedef struct {
     size_t top;    // top free addr
 } Heap;
 
-static Heap **heap() {
-    return (Heap**) 1;
+static Heap *&heap() {
+    return *(Heap**) 1;
 }
-static const void **heap_limit() {
-    return (void**) 2;
+static const void *&heap_limit() {
+    return *(void**) 2;
 }
-static size_t *heap_split_thresh() {
-    return (size_t*) 3;
+static size_t &heap_split_thresh() {
+    return *(size_t*) 3;
 }
-static size_t *heap_max_blocks() {
-    return (size_t*) 4;
+static size_t &heap_max_blocks() {
+    return *(size_t*) 4;
 }
 
 /**
@@ -39,7 +39,7 @@ static size_t *heap_max_blocks() {
  */
 static void insert_block(Block *block) {
 #ifndef TA_DISABLE_COMPACT
-    Block *ptr  = (*heap())->free;
+    Block *ptr  = heap()->free;
     Block *prev = NULL;
     while (ptr != NULL) {
         if ((size_t)block->addr <= (size_t)ptr->addr) {
@@ -53,12 +53,12 @@ static void insert_block(Block *block) {
         }
         prev->next = block;
     } else {
-        (*heap())->free = block;
+        heap()->free = block;
     }
     block->next = ptr;
 #else
-    block->next = (*heap())->free;
-    (*heap())->free  = block;
+    block->next = heap()->free;
+    heap()->free  = block;
 #endif
 }
 
@@ -67,8 +67,8 @@ static void release_blocks(Block *scan, Block *to) {
     Block *scan_next;
     while (scan != to) {
         scan_next   = scan->next;
-        scan->next  = (*heap())->fresh;
-        (*heap())->fresh = scan;
+        scan->next  = heap()->fresh;
+        heap()->fresh = scan;
         scan->addr  = 0;
         scan->size  = 0;
         scan        = scan_next;
@@ -76,7 +76,7 @@ static void release_blocks(Block *scan, Block *to) {
 }
 
 static void compact() {
-    Block *ptr = (*heap())->free;
+    Block *ptr = heap()->free;
     Block *prev;
     Block *scan;
     while (ptr != NULL) {
@@ -103,18 +103,18 @@ static void compact() {
 #endif
 
 bool ta_init(const size_t heap_blocks, const size_t split_thresh, const size_t alignment) {
-    *heap() = (Heap *)5;
-    *heap_limit() = 1 << 20;
-    *heap_split_thresh() = split_thresh;
-    *heap_max_blocks() = heap_blocks;
+    heap() = (Heap *)5;
+    heap_limit() = 1 << 20;
+    heap_split_thresh() = split_thresh;
+    heap_max_blocks() = heap_blocks;
 
-    (*heap())->free   = NULL;
-    (*heap())->used   = NULL;
-    (*heap())->fresh  = (Block *)((*heap()) + 1);
-    (*heap())->top    = (size_t)((*heap())->fresh + heap_blocks);
+    heap()->free   = NULL;
+    heap()->used   = NULL;
+    heap()->fresh  = (Block *)(heap() + 1);
+    heap()->top    = (size_t)(heap()->fresh + heap_blocks);
 
-    Block *block = (*heap())->fresh;
-    size_t i     = *heap_max_blocks() - 1;
+    Block *block = heap()->fresh;
+    size_t i     = heap_max_blocks() - 1;
     while (i) {
         i -= 1;
         block->next = block + 1;
@@ -125,14 +125,14 @@ bool ta_init(const size_t heap_blocks, const size_t split_thresh, const size_t a
 }
 
 bool free(void *free) {
-    Block *block = (*heap())->used;
+    Block *block = heap()->used;
     Block *prev  = NULL;
     while (block != NULL) {
         if (free == block->addr) {
             if (prev) {
                 prev->next = block->next;
             } else {
-                (*heap())->used = block->next;
+                heap()->used = block->next;
             }
             insert_block(block);
 #ifndef TA_DISABLE_COMPACT
@@ -147,29 +147,29 @@ bool free(void *free) {
 }
 
 static Block *alloc_block(size_t num) {
-    Block *ptr  = (*heap())->free;
+    Block *ptr  = heap()->free;
     Block *prev = NULL;
-    size_t top  = (*heap())->top;
+    size_t top  = heap()->top;
     while (ptr != NULL) {
-        const int is_top = ((size_t)ptr->addr + ptr->size >= top) && ((size_t)ptr->addr + num <= (size_t)*heap_limit());
+        const int is_top = ((size_t)ptr->addr + ptr->size >= top) && ((size_t)ptr->addr + num <= (size_t)heap_limit());
         if (is_top || ptr->size >= num) {
             if (prev != NULL) {
                 prev->next = ptr->next;
             } else {
-                (*heap())->free = ptr->next;
+                heap()->free = ptr->next;
             }
-            ptr->next  = (*heap())->used;
-            (*heap())->used = ptr;
+            ptr->next  = heap()->used;
+            heap()->used = ptr;
             if (is_top) {
                 ptr->size = num;
-                (*heap())->top = (size_t)ptr->addr + num;
+                heap()->top = (size_t)ptr->addr + num;
 #ifndef TA_DISABLE_SPLIT
-            } else if ((*heap())->fresh != NULL) {
+            } else if (heap()->fresh != NULL) {
                 size_t excess = ptr->size - num;
-                if (excess >= *heap_split_thresh()) {
+                if (excess >= heap_split_thresh()) {
                     ptr->size    = num;
-                    Block *split = (*heap())->fresh;
-                    (*heap())->fresh  = split->next;
+                    Block *split = heap()->fresh;
+                    heap()->fresh  = split->next;
                     split->addr  = (void *)((size_t)ptr->addr + num);
                     split->size = excess;
                     insert_block(split);
@@ -187,14 +187,14 @@ static Block *alloc_block(size_t num) {
     // no matching free blocks
     // see if any other blocks available
     size_t new_top = top + num;
-    if ((*heap())->fresh != NULL && new_top <= (size_t)*heap_limit()) {
-        ptr         = (*heap())->fresh;
-        (*heap())->fresh = ptr->next;
+    if (heap()->fresh != NULL && new_top <= (size_t)heap_limit()) {
+        ptr         = heap()->fresh;
+        heap()->fresh = ptr->next;
         ptr->addr   = (void *)top;
-        ptr->next   = (*heap())->used;
+        ptr->next   = heap()->used;
         ptr->size   = num;
-        (*heap())->used  = ptr;
-        (*heap())->top   = new_top;
+        heap()->used  = ptr;
+        heap()->top   = new_top;
         return ptr;
     }
     return NULL;

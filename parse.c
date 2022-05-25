@@ -184,6 +184,9 @@ static Node *ast_lvar(Type *ty, char *name) {
         map_put(localenv, name, r);
     if (localvars)
         vec_push(localvars, r);
+    // while (r->ty->kind == KIND_REF) {
+    //     r = ast_uop(AST_DEREF, r->ty->ptr, r);
+    // }
     return r;
 }
 
@@ -279,6 +282,15 @@ static Node *ast_init(Node *val, Type *totype, int off) {
 }
 
 static Node *ast_conv(Type *totype, Node *val) {
+    if (val->ty->kind == KIND_REF && totype->kind == KIND_REF) {
+        return val;
+    }
+    if (val->ty->kind == KIND_REF) {
+        val = ast_uop(AST_DEREF, val->ty->ptr, val);
+    }
+    if (totype->kind == KIND_REF) {
+        val = ast_uop(AST_ADDR, make_ptr_type(val->ty), val);
+    }
     return make_ast(&(Node){ AST_CONV, totype, .operand = val });
 }
 
@@ -360,6 +372,10 @@ static Type* make_ptr_type(Type *ty) {
     return make_type(&(Type){ KIND_PTR, .ptr = ty, .size = 1, .align = 1 });
 }
 
+static Type* make_ref_type(Type *ty) {
+    return make_type(&(Type){ KIND_REF, .ptr = ty, .size = 1, .align = 1 });
+}
+
 static Type* make_array_type(Type *ty, int len) {
     int size;
     if (len < 0)
@@ -424,7 +440,7 @@ static bool is_string(Type *ty) {
 
 static void ensure_lvalue(Node *node) {
     switch (node->kind) {
-    case AST_LVAR: case AST_GVAR: case AST_DEREF: case AST_STRUCT_REF: case AST_CONV:
+    case AST_LVAR: case AST_GVAR: case AST_DEREF: case AST_STRUCT_REF: case AST_CONV: case OP_CAST:
         return;
     default:
         error("lvalue expected, but got %s", node2s(node));
@@ -514,6 +530,9 @@ static Node *conv(Node *node) {
     case KIND_INT:
         if (ty->bitsize > 0)
             return ast_conv(type_int, node);
+        break;
+    case KIND_REF:
+        return ast_conv(ty->ptr, node);
     }
     return node;
 }
@@ -609,11 +628,25 @@ static bool is_same_struct(Type *a, Type *b) {
 }
 
 static void ensure_assignable(Type *totype, Type *fromtype) {
+    int toref = totype->kind == KIND_REF;
+    if (toref) {
+        totype = totype->ptr;
+    }
+    int fromref = fromtype->kind == KIND_REF;
+    if (fromref) {
+        fromtype = fromtype->ptr;
+    }
     if ((is_arithtype(totype) || totype->kind == KIND_PTR) &&
         (is_arithtype(fromtype) || fromtype->kind == KIND_PTR))
         return;
     if (is_same_struct(totype, fromtype))
         return;
+    if (toref && fromtype->kind == KIND_PTR) {
+        error("incompatible kind: <%s> <%s> (hint: use `*` on the value)", ty2s(totype), ty2s(fromtype));
+    }
+    if (fromref && fromtype->kind == KIND_PTR) {
+        error("incompatible kind: <%s> <%s> (hint: use `&` on the value)", ty2s(totype), ty2s(fromtype));
+    }
     error("incompatible kind: <%s> <%s>", ty2s(totype), ty2s(fromtype));
 }
 
@@ -906,6 +939,9 @@ static void read_static_assert() {
 
 static Node *read_var_or_func(char *name) {
     Node *v = map_get(env(), name);
+    if (v->ty->kind == KIND_REF) {
+        v = ast_uop(AST_DEREF, v->ty->ptr, v);
+    }
     if (!v) {
         Token *tok = peek();
         if (!is_keyword(tok, '('))
@@ -1007,6 +1043,9 @@ static Node *read_subscript_expr(Node *node) {
 static Node *read_postfix_expr_tail(Node *node) {
     if (!node) return NULL;
     for (;;) {
+        if (node->ty->kind == KIND_REF) {
+            node = ast_uop(AST_DEREF, node->ty->ptr, node);
+        }
         if (next_token('(')) {
             Token *tok = peek();
             node = conv(node);
@@ -1965,6 +2004,10 @@ static Type *read_declarator(char **rname, Type *basety, Vector *params, int ctx
         *stub = *read_declarator_tail(basety, params);
         return t;
     }
+    if (next_token('&')) {
+        skip_type_qualifiers();
+        return read_declarator(rname, make_ref_type(basety), params, ctx);
+    }
     if (next_token('*')) {
         skip_type_qualifiers();
         return read_declarator(rname, make_ptr_type(basety), params, ctx);
@@ -2604,8 +2647,9 @@ static Node *read_continue_stmt(Token *tok) {
 static Node *read_return_stmt() {
     Node *retval = read_expr_opt();
     expect(';');
-    if (retval)
+    if (retval) {
         return ast_return(ast_conv(current_func_type->rettype, retval));
+    }
     return ast_return(NULL);
 }
 
@@ -2684,15 +2728,7 @@ static void read_decl_or_stmt(Vector *list) {
     if (tok->kind == TEOF)
         error("premature end of input");
     mark_location();
-    if (next_token(KVAR)) {
-        Token *name = get();
-        assert(name->kind == TIDENT);
-        assert(next_token('='));
-        Node *init = conv(read_assignment_expr());
-        Node *var = ast_lvar(init->ty, name->sval);
-        Vector *r = make_vector1(ast_init(init, init->ty, 0));
-        vec_push(list, ast_decl(var, r));
-    } if (is_type(tok)) {
+    if (is_type(tok)) {
         read_decl(list, false);
     } else if (next_token(KSTATIC_ASSERT)) {
         read_static_assert();

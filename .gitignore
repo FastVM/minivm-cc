@@ -9,3 +9,8 @@ a.out
 .vscode
 minivm-cc
 test/real
+perf.data
+perf.data.old
+out.*
+out
+*.gcda

@@ -109,6 +109,30 @@ static char *pathof_node(Node *node)
     }
 }
 
+static void store_pair_struct(int freg, Type *var, int reg)
+{
+    if (var->kind == KIND_STRUCT)
+    {
+        for (int i = 0; i < vec_len(var->fields->key); i++)
+        {
+            int r = nregs++;
+            char *key = vec_get(var->fields->key, i);
+            emit("r%i <- getcar r%i", r, reg);
+            store_pair_struct(freg, dict_get(var->fields, key), r);
+            int nextreg = nregs++;
+            emit("r%i <- getcdr r%i", nextreg, reg);
+            reg = nextreg;
+        }
+    }
+    else
+    {
+        emit("r0 <- uint 1", reg);
+        emit("r%i <- uadd r%i", freg, freg);
+        emit("r0 <- call lib.pool.set r1 r%i r%i", freg, reg);
+    }
+}
+
+
 static int emit_assign(Node *node)
 {
     if (node->left->kind == AST_STRUCT_REF)
@@ -120,9 +144,10 @@ static int emit_assign(Node *node)
             for (int i = 0; i < vec_len(struc->ty->fields->key); i++) {
                 char *check = vec_get(struc->ty->fields->key, i);
                 if (!strcmp(field, check)) {
-                    offset = i;
                     break;
                 }
+                Type *fail = dict_get(struc->ty->fields, check);
+                offset += fail->size;
             }
             int baseptr = emit_expr(struc->operand);
             int value = emit_expr(node->right);
@@ -139,13 +164,29 @@ static int emit_assign(Node *node)
     }
     else if (node->left->kind == AST_DEREF)
     {
-        if (node->left->ty->kind == KIND_STRUCT) {
-            error("*struct = .* :: %s\n\t%s", node2s(node->left), node2s(node->right));
-        } else {
-            int ret = nregs++;
+        if (node->right->kind == AST_DEREF) {
+            int toaddr = emit_expr(node->left->operand);
+            int fromaddr = emit_expr(node->right->operand);
+            int tmp1 = nregs++;
+            for (int i = 0; i < node->left->operand->ty->size; i++) {
+                emit("r0 <- uint %i", i);
+                emit("r%i <- uadd r0 r%i", tmp1, toaddr);
+                emit("r0 <- uadd r0 r%i", fromaddr);
+                emit("r0 <- call lib.pool.get r1 r0");
+                emit("r0 <- call lib.pool.set r1 r%i r0", tmp1);
+            }
+            return toaddr;
+        } if (node->left->ty->kind == KIND_STRUCT) {
             int addr = emit_expr(node->left->operand);
             int val = emit_expr(node->right);
-            emit("r%i <- call lib.pool.set r1 r%i r%i", ret, addr, val);
+            int freg = nregs++;
+            emit("r%i <- reg r%i", freg, addr);
+            store_pair_struct(freg, node->left->ty, val);
+            return val;
+        } else {
+            int addr = emit_expr(node->left->operand);
+            int val = emit_expr(node->right);
+            emit("r0 <- call lib.pool.set r1 r%i r%i", addr, val);
             return val;
         }
     }
@@ -640,9 +681,10 @@ static int emit_struct_ref(Node *node)
         for (int i = 0; i < vec_len(struc->ty->fields->key); i++) {
             char *check = vec_get(struc->ty->fields->key, i);
             if (!strcmp(field, check)) {
-                offset = i;
                 break;
             }
+            Type *fail = dict_get(struc->ty->fields, check);
+            offset += fail->size;
         }
         int baseptr = emit_expr(struc->operand);
         int ret = nregs++;
@@ -730,6 +772,31 @@ static int emit_expr(Node *node)
         return 0;
     case OP_LABEL_ADDR:
         return emit_label_addr(node);
+    case AST_ADDR:
+        // if (node->operand->kind == AST_DEREF) {
+        //     return emit_expr(node->operand->operand);
+        // }
+        int off = 0;
+        Node *op = node->operand;
+        while(1) {
+            if(op->kind == AST_STRUCT_REF) {
+                Type *ent = dict_get(op->struc->ty->fields, op->field);
+                off += ent->offset;
+                op = op->struc;
+            } else if (op->kind == AST_CONV || op->kind == OP_CAST) {
+                op = op->operand;
+            } else {
+                break;
+            }
+        }
+        if (op->kind == AST_DEREF) {
+            int ret = nregs++;
+            int first = emit_expr(op->operand);
+            emit("r%i <- uint %i", ret, off);
+            emit("r%i <- uadd r%i r%i", ret, ret, first);
+            return ret;
+        }
+        error("cannot handle addr: `&` operator is bad expr: %s", node2s(node));
     case AST_DEREF:
         return emit_deref(node);
     case AST_GOTO:

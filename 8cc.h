@@ -164,6 +164,7 @@ enum {
     KIND_STRUCT,
     KIND_FUNC,
     // used only in parser
+    KIND_REF,
     KIND_STUB,
 };
 

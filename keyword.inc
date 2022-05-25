@@ -22,7 +22,6 @@ op(OP_NE, "!=")
 op(OP_SAL, "<<")
 op(OP_SAR, ">>")
 
-keyword(KVAR, "__auto_type", false)
 keyword(KALIGNAS, "_Alignas", true)
 keyword(KALIGNOF, "_Alignof", false)
 keyword(KAUTO, "auto", true)

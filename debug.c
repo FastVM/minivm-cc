@@ -23,6 +23,8 @@ static char *do_ty2s(Dict *dict, Type *ty) {
     case KIND_FLOAT: return "float";
     case KIND_DOUBLE: return "double";
     case KIND_LDOUBLE: return "long double";
+    case KIND_REF:
+        return format("&%s", do_ty2s(dict, ty->ptr));
     case KIND_PTR:
         return format("*%s", do_ty2s(dict, ty->ptr));
     case KIND_ARRAY:
@@ -34,14 +36,15 @@ static char *do_ty2s(Dict *dict, Type *ty) {
         dict_put(dict, format("%p", ty), (void *)1);
         if (ty->fields) {
             Buffer *b = make_buffer();
-            buf_printf(b, "(%s", kind);
+            buf_printf(b, "%s{", kind);
             Vector *keys = dict_keys(ty->fields);
             for (int i = 0; i < vec_len(keys); i++) {
                 char *key = vec_get(keys, i);
                 Type *fieldtype = dict_get(ty->fields, key);
-                buf_printf(b, " (%s)", do_ty2s(dict, fieldtype));
+                // buf_printf(b, "%s %s;", do_ty2s(dict, fieldtype), key);
+                buf_printf(b, "%s;", do_ty2s(dict, fieldtype));
             }
-            buf_printf(b, ")");
+            buf_printf(b, "}");
             return buf_body(b);
         }
     }
