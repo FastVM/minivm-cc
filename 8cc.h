@@ -174,6 +174,7 @@ typedef struct Type {
     int align;
     bool usig; // true if unsigned
     bool isstatic;
+    void *initnode;
     // pointer or array
     struct Type *ptr;
     // array length

@@ -154,6 +154,7 @@ static int emit_assign(Node *node)
             emit("r0 <- uint %i", offset);
             emit("r0 <- uadd r0 r%i", baseptr);
             emit("r0 <- call lib.pool.set r1 r0 r%i", value);
+            return baseptr;
         } else {
             char *name = pathof_node(node->left);
             int rhs = emit_expr(node->right);
@@ -481,18 +482,6 @@ static int emit_func_call(Node *node)
     {
         error("funcptr call");
     }
-    else if (!strcmp(node->fname, "__minivm_get"))
-    {
-        int ret = nregs++;
-        emit("r%i <- call lib.pool.get r1%s", ret, args);
-        return ret;
-    }
-    else if (!strcmp(node->fname, "__minivm_set"))
-    {
-        int ret = nregs++;
-        emit("r%i <- call lib.pool.set r1%s", ret, args);
-        return ret;
-    }
     else if (!strcmp(node->fname, "putchar"))
     {
         emit("putchar%s", args);
@@ -772,7 +761,7 @@ static int emit_expr(Node *node)
         return 0;
     case OP_LABEL_ADDR:
         return emit_label_addr(node);
-    case AST_ADDR:
+    case AST_ADDR: {
         // if (node->operand->kind == AST_DEREF) {
         //     return emit_expr(node->operand->operand);
         // }
@@ -797,6 +786,7 @@ static int emit_expr(Node *node)
             return ret;
         }
         error("cannot handle addr: `&` operator is bad expr: %s", node2s(node));
+    }
     case AST_DEREF:
         return emit_deref(node);
     case AST_GOTO:

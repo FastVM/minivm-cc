@@ -2,8 +2,6 @@
 int putchar(int c);
 void *malloc(int size);
 void free(void *ptr);
-int __minivm_get(int ptr);
-int __minivm_set(int ptr, int val);
 
 int putn(int n) {
     if (n < 10) {

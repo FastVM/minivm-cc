@@ -241,6 +241,13 @@ static Node *ast_string(int enc, char *str, int len) {
 }
 
 static Node *ast_funcall(Type *ftype, char *fname, Vector *args) {
+    while (vec_len(ftype->params) > vec_len(args)) {
+        Type *arg = vec_get(ftype->params, vec_len(args));
+        if (!arg || !arg->initnode) {
+            error("need more args for function: %s\n", fname);
+        }
+        vec_push(args, arg->initnode);
+    }
     return make_ast(&(Node){
         .kind = AST_FUNCALL,
         .ty = ftype->rettype,
@@ -1892,6 +1899,9 @@ static void read_declarator_params(Vector *types, Vector *vars, bool *ellipsis) 
         char *name;
         Type *ty = read_func_param(&name, typeonly);
         ensure_not_void(ty);
+        if (next_token('=')) {
+            ty->initnode = read_logand_expr();
+        }
         vec_push(types, ty);
         if (!typeonly)
             vec_push(vars, ast_lvar(ty, name));
