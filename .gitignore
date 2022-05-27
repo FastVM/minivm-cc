@@ -4,7 +4,6 @@
 *~
 8cc
 stage?
-*.vasm
 a.out
 .vscode
 minivm-cc
