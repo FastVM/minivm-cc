@@ -955,7 +955,7 @@ static void init_predefined_macros() {
 
 void init_now() {
     time_t timet = time(NULL);
-    localtime_r(&timet, &now);
+    now = *localtime(&timet);
 }
 
 void cpp_init() {
