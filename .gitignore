@@ -16,3 +16,4 @@ out
 *.gcda
 *.bc
 bin
+*.bc

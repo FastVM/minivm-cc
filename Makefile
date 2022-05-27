@@ -8,13 +8,13 @@ REAL_OPT=-fno-ssa-phiopt $(OPT)
 
 default: all
 
-all: bin/vmcc bin/vmasm
+all: bin/minivm-cc bin/minivm-asm
 
-bin/vmcc: src/8cc.h main.o $(8OBJS) $(VOBJS)
+bin/minivm-cc: src/8cc.h main.o $(8OBJS) $(VOBJS)
 	@mkdir -p bin
 	$(CC) $(REAL_OPT) -o $(@) obj/cc/main.o $(8OBJS:%=obj/cc/%) $(VOBJS:%=obj/vm/%) $(LDFLAGS) -lm
 
-bin/vmasm: $(VOBJS) obj/vm/main.o
+bin/minivm-asm: $(VOBJS) obj/vm/main.o
 	@mkdir -p bin
 	$(CC) $(REAL_OPT) -o $(@) vm/util/main.c $(VOBJS:%=obj/vm/%) -lm
 

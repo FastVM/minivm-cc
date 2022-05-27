@@ -1,0 +1,48 @@
+name: Builds
+on: [push]
+jobs:
+  linux-minivm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: true
+      - run: make CC=cc OPT='-O3 -fno-ssa-phiopt -fomit-frame-pointer -ffast-math'
+      - uses: actions/upload-artifact@v2
+        with:
+          name: minivm-linux
+          path:  | 
+            rt
+            bin/minivm-cc
+            bin/minivm-asm
+  macos-minivm:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: true
+      - run: make CC=cc OPT='-O3 -fomit-frame-pointer -ffast-math'
+      - uses: actions/upload-artifact@v2
+        with:
+          name: minivm-mac
+          path:  | 
+            rt
+            bin/minivm-cc
+            bin/minivm-asm
+  windows-minivm:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: true
+      - uses: egor-tensin/setup-mingw@v2
+        with:
+          platform: x64
+      - run: make CC=cc OPT='-O3 -fno-ssa-phiopt -fomit-frame-pointer -ffast-math'
+      - uses: actions/upload-artifact@v2
+        with:
+          name: minivm-windows
+          path:  | 
+            rt
+            bin/minivm-cc.exe
+            bin/minivm-asm.exe
