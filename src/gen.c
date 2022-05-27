@@ -67,7 +67,7 @@ static void emit_branch_bool(Node *node, char *zero, char *nonzero)
     {
         int lhs = emit_expr(node->left);
         int rhs = emit_expr(node->right);
-        char typepre = kind_is_int(node->left->ty->kind) ? 'u' : 'f';
+        char typepre = kind_is_float(node->left->ty->kind) ? 'f' : node->left->ty->usig ? 'u' :  's';
         switch (node->kind)
         {
         case OP_EQ:
@@ -258,7 +258,7 @@ static int emit_binop(Node *node)
     }
     int lhs = emit_expr(node->left);
     int rhs = emit_expr(node->right);
-    char typepre = node->left->ty->kind == KIND_INT ? 'u' : 'f';
+    char typepre = kind_is_float(node->left->ty->kind) ? 'f' : node->left->ty->usig ? 'u' :  's';
     switch (node->kind)
     {
     case '+':
@@ -426,18 +426,24 @@ static void emit_jmp(char *label)
 
 static int emit_literal(Node *node)
 {
-    if (node->ty->kind != KIND_INT)
+    int ret = nregs++;
+    if (kind_is_float(node->ty->kind))
     {
-        int ret = nregs++;
-        emit("r%i <- fint %lu", ret, (unsigned long)node->fval);
-        return ret;
+        emit("r%i <- fint %lu", ret, (unsigned long) node->fval);
+    }
+    else if (node->ty->usig)
+    {
+        emit("r%i <- uint %lu", ret, (unsigned long) node->ival);
     }
     else
     {
-        int ret = nregs++;
-        emit("r%i <- uint %lu", ret, (unsigned long)node->ival);
-        return ret;
+        if (node->ival < 0) {
+            emit("r%i <- sneg %li", ret, -node->ival);
+        } else {
+            emit("r%i <- sint %li", ret, node->ival);
+        }
     }
+    return ret;
 }
 
 static int emit_struct_all(Type *ty, char *path)
