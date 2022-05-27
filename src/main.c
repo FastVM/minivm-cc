@@ -96,7 +96,7 @@ int main(int argc, char **argv) {
         vec_push(infiles, format("%s/src/bitop.c", rtsrc));
         vec_push(infiles, format("%s/src/start.c", rtsrc));
         vec_push(infiles, format("%s/src/tinyalloc.c", rtsrc));
-        vec_push(infiles, format("%s/src/mem.asm", rtsrc));
+        vec_push(infiles, format("%s/src/mem.vasm", rtsrc));
         add_include_path(format("%s/include", rtsrc));
     }
     for (int i = 0; i < vec_len(infiles); i++) {
