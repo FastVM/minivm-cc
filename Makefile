@@ -4,7 +4,7 @@ OPT=-O3
      error.o path.o file.o set.o encoding.o
 VOBJS=asm.o gc.o jump.o reguse.o int/run.o int/comp.o
 
-REAL_OPT=-fno-ssa-phiopt $(OPT)
+REAL_OPT=$(OPT)
 
 default: all
 
