@@ -14,3 +14,5 @@ perf.data.old
 out.*
 out
 *.gcda
+*.bc
+bin
