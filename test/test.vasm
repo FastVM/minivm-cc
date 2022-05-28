@@ -1,0 +1,14 @@
+
+@main
+    r1 <- sint 9
+    sbb r1 main.done main.next
+@main.next
+    r0 <- sint 48
+    r0 <- sadd r1 r0
+    r0 <- stou r0
+    putchar r0
+    r0 <- sint 1
+    r1 <- ssub r1 r0
+    sbb r1 main.done main.next
+@main.done
+    exit

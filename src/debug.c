@@ -223,10 +223,6 @@ static void do_node2s(Buffer *b, Node *node) {
     case OP_GE:  binop_to_string(b, ">=", node); break;
     case OP_LE:  binop_to_string(b, "<=", node); break;
     case OP_NE:  binop_to_string(b, "!=", node); break;
-    case OP_PRE_INC: uop_to_string(b, "pre++", node); break;
-    case OP_PRE_DEC: uop_to_string(b, "pre--", node); break;
-    case OP_POST_INC: uop_to_string(b, "post++", node); break;
-    case OP_POST_DEC: uop_to_string(b, "post--", node); break;
     case OP_LOGAND: binop_to_string(b, "and", node); break;
     case OP_LOGOR:  binop_to_string(b, "or", node); break;
     case OP_A_ADD:  binop_to_string(b, "+=", node); break;

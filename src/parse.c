@@ -244,7 +244,8 @@ static Node *ast_funcall(Type *ftype, char *fname, Vector *args) {
     while (vec_len(ftype->params) > vec_len(args)) {
         Type *arg = vec_get(ftype->params, vec_len(args));
         if (!arg || !arg->initnode) {
-            error("need more args for function: %s\n", fname);
+            // error("need more args for function: %s\n", fname);
+            break;
         }
         vec_push(args, arg->initnode);
     }
@@ -946,9 +947,6 @@ static void read_static_assert() {
 
 static Node *read_var_or_func(char *name) {
     Node *v = map_get(env(), name);
-    if (v->ty->kind == KIND_REF) {
-        v = ast_uop(AST_DEREF, v->ty->ptr, v);
-    }
     if (!v) {
         Token *tok = peek();
         if (!is_keyword(tok, '('))
@@ -956,6 +954,9 @@ static Node *read_var_or_func(char *name) {
         Type *ty = make_func_type(type_int, make_vector(), true, false);
         warnt(tok, "assume returning int: %s()", name);
         return ast_funcdesg(ty, name);
+    }
+    if (v->ty->kind == KIND_REF) {
+        v = ast_uop(AST_DEREF, v->ty->ptr, v);
     }
     if (v->ty->kind == KIND_FUNC)
         return ast_funcdesg(v->ty, name);
@@ -1081,8 +1082,10 @@ static Node *read_postfix_expr_tail(Node *node) {
         Token *tok = peek();
         if (next_token(OP_INC) || next_token(OP_DEC)) {
             ensure_lvalue(node);
-            int op = is_keyword(tok, OP_INC) ? OP_POST_INC : OP_POST_DEC;
-            return ast_uop(op, node->ty, node);
+            int off = is_keyword(tok, OP_INC) ? 1 : -1;
+            Node *tostore = ast_binop(node->ty, '+', node, ast_inttype(type_int, off));
+            Node *store = ast_binop(node->ty, '=', node, tostore);
+            return ast_binop(node->ty, '-', store, ast_inttype(type_int, off));
         }
         return node;
     }
@@ -1093,11 +1096,13 @@ static Node *read_postfix_expr() {
     return read_postfix_expr_tail(node);
 }
 
-static Node *read_unary_incdec(int op) {
-    Node *operand = read_unary_expr();
-    operand = conv(operand);
-    ensure_lvalue(operand);
-    return ast_uop(op, operand->ty, operand);
+static Node *read_unary_incdec(int n) {
+    Node *node = read_unary_expr();
+    node = conv(node);
+    ensure_lvalue(node);
+    Node *tostore = ast_binop(node->ty, '+', node, ast_inttype(node->ty, n));
+    Node *store = ast_binop(node->ty, '=', node, tostore);
+    return ast_binop(node->ty, '-', store, ast_inttype(node->ty, n));
 }
 
 static Node *read_label_addr(Token *tok) {
@@ -1156,8 +1161,8 @@ static Node *read_unary_expr() {
         switch (tok->id) {
         case KSIZEOF: return read_sizeof_operand();
         case KALIGNOF: return read_alignof_operand();
-        case OP_INC: return read_unary_incdec(OP_PRE_INC);
-        case OP_DEC: return read_unary_incdec(OP_PRE_DEC);
+        case OP_INC: return read_unary_incdec(1);
+        case OP_DEC: return read_unary_incdec(-1);
         case OP_LOGAND: return read_label_addr(tok);
         case '&': return read_unary_addr();
         case '*': return read_unary_deref(tok);

@@ -43,9 +43,11 @@ func lib.pool.get
     r0 <- umod r2 r3
     ublt r0 r5 lib.pool.get.getcar lib.pool.get.getcdr
 @lib.pool.get.getcar
+    r0 <- call lib.pool.fillcar r1
     r1 <- getcar r1
     jump lib.pool.get.loop
 @lib.pool.get.getcdr
+    r0 <- call lib.pool.fillcdr r1
     r1 <- getcdr r1
     jump lib.pool.get.loop
 end
@@ -87,4 +89,14 @@ func lib.pool.init
     r0 <- uint 0
     r0 <- cons r0 r0
     ret r0
+end
+
+func func.fmod
+    r0 <- fmod r2 r3
+    ret r0
+end
+
+func func.exit
+    r15 <- uint 0
+    exit
 end

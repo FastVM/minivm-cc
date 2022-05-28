@@ -2,12 +2,13 @@
 #include <stdio.h>
 #include <stddef.h>
 
-#define BLOCKSIZE 0x100
+#define true ((_Bool)1)
+#define BLOCKSIZE 0xF
 
 int main() {
     char mem[] = "hello world";
     int n = 0;
-    while (1) {
+    while (true) {
         if (malloc(BLOCKSIZE) == NULL) {
             break;
         }

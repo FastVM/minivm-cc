@@ -104,8 +104,9 @@ static void compact() {
 
 bool ta_init(const size_t heap_blocks, const size_t split_thresh, const size_t alignment) {
     heap() = (Heap *)5;
-    heap_limit() = 1 << 20;
-    heap_split_thresh() = split_thresh;
+    heap_limit() = 1 << 24;
+    heap_split_thresh() =
+     split_thresh;
     heap_max_blocks() = heap_blocks;
 
     heap()->free   = NULL;
@@ -124,7 +125,7 @@ bool ta_init(const size_t heap_blocks, const size_t split_thresh, const size_t a
     return true;
 }
 
-bool free(void *free) {
+static bool int_free(void *free) {
     Block *block = heap()->used;
     Block *prev  = NULL;
     while (block != NULL) {
@@ -200,7 +201,7 @@ static Block *alloc_block(size_t num) {
     return NULL;
 }
 
-void *malloc(size_t num) {
+static void *int_malloc(size_t num) {
     Block *block = alloc_block(num);
     if (block != NULL) {
         return block->addr;
@@ -209,28 +210,54 @@ void *malloc(size_t num) {
 }
 
 static void memclear(void *ptr, size_t num) {
-    size_t *ptrw = (size_t *)ptr;
-    size_t numw  = (num & -sizeof(size_t)) / sizeof(size_t);
-    while (numw) {
-        numw-=1;
-        *ptrw = 0;
-        ptrw += 1;
-    }
-    num &= (sizeof(size_t) - 1);
-    uint8_t *ptrb = (uint8_t *)ptrw;
-    while (num) {
-        num -= 1;
-        *ptrb = 0;
-        ptrb += 1;
+    uint8_t *uv = ptr;
+    for (size_t i = 0; i < num; i++) {
+        uv[i] = 0;
     }
 }
 
-void *calloc(size_t num, size_t size) {
-    num *= size;
+static void *int_calloc(size_t num) {
     Block *block = alloc_block(num);
     if (block != NULL) {
         memclear(block->addr, num);
         return block->addr;
     }
     return NULL;
+}
+
+static void free(void *ptr) {
+    size_t *sptr = (size_t*)ptr;
+    int_free(&sptr[-1]);
+}
+
+static void *malloc(size_t num) {
+    size_t *ret = int_malloc(num + sizeof(size_t));
+    if (ret == NULL) {
+        return NULL;
+    }
+    ret[0] = num;
+    return &ret[1];
+}
+
+static void *calloc(size_t num, size_t size) {
+    num *= size;
+    size_t *ret = int_calloc(num + sizeof(size_t));
+    if (ret == NULL) {
+        return NULL;
+    }
+    ret[0] = num;
+    return &ret[1];
+}
+
+static void *realloc(void *ptr, size_t num) {
+    size_t sz = ((size_t*)ptr)[-1];
+    uint8_t *init = &ptr[0];
+    uint8_t *next = malloc(num);
+    if (next != NULL) {
+        for (size_t i = 0; i < sz && i < num; i+=1) {
+            next[i] = init[i]; 
+        }
+    }
+    free(ptr);
+    return next;
 }

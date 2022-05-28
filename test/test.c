@@ -2,16 +2,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-typedef struct {
+typedef union {
     int x;
+    int y;
 } thing_t;
 
 int main() {
-    thing_t foo1 = {0};
-    thing_t foo2 = {1};
-    thing_t *pfoo = malloc(sizeof(thing_t));
-    putn(foo1.x);
-    putchar('\n');
-    putn(foo2.x);
-    putchar('\n');
+    thing_t *thing = malloc(sizeof(thing_t));
+    thing->y = 1234;
+    return 0;
 }

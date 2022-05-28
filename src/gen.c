@@ -31,7 +31,7 @@ Buffer *emit_end(void)
 
 static bool kind_is_int(int kind)
 {
-    return kind == KIND_PTR || kind == KIND_BOOL || kind == KIND_CHAR || kind == KIND_SHORT || kind == KIND_INT || kind == KIND_LONG || kind == KIND_LLONG || kind == KIND_ENUM || kind == KIND_PTR;
+    return kind == KIND_PTR || kind == KIND_ARRAY || kind == KIND_BOOL || kind == KIND_CHAR || kind == KIND_SHORT || kind == KIND_INT || kind == KIND_LONG || kind == KIND_LLONG || kind == KIND_ENUM;
 }
 
 static bool kind_is_float(int kind)
@@ -111,7 +111,7 @@ static char *pathof_node(Node *node)
 
 static void store_pair_struct(int freg, Type *var, int reg)
 {
-    if (var->kind == KIND_STRUCT)
+    if (var->kind == KIND_STRUCT && var->is_struct)
     {
         for (int i = 0; i < vec_len(var->fields->key); i++)
         {
@@ -177,7 +177,7 @@ static int emit_assign(Node *node)
                 emit("r0 <- call lib.pool.set r1 r%i r0", tmp1);
             }
             return toaddr;
-        } if (node->left->ty->kind == KIND_STRUCT) {
+        } if (node->left->ty->kind == KIND_STRUCT && node->left->ty->is_struct) {
             int addr = emit_expr(node->left->operand);
             int val = emit_expr(node->right);
             int freg = nregs++;
@@ -202,7 +202,7 @@ static int emit_assign(Node *node)
 
 static int emit_binop(Node *node)
 {
-    if (node->left->ty->kind == KIND_PTR) {
+    if (node->left->ty->kind == KIND_PTR || node->left->ty->kind == KIND_ARRAY) {
         if (node->kind == '+') {
             int lhs = emit_expr(node->left);
             int rhs = emit_expr(node->right);
@@ -291,7 +291,7 @@ static int emit_binop(Node *node)
         emit("r%i <- %cmod r%i r%i", ret, typepre, lhs, rhs);
         return ret;
     }
-    case OP_LOGOR:
+    case '|':
     {
         int ret = nregs++;
         emit("r%i <- call func.__minivm_bits_or r1 r%i r%i", ret, lhs, rhs);
@@ -427,7 +427,24 @@ static void emit_jmp(char *label)
 static int emit_literal(Node *node)
 {
     int ret = nregs++;
-    if (kind_is_float(node->ty->kind))
+    if (node->ty->kind == KIND_ARRAY) {
+        emit("r0 <- uint %i", strlen(node->sval)+1);
+        emit("r%i <- call func.malloc r1 r0", ret);
+        int tmp = nregs++;
+        emit("r%i <- reg r%i", tmp, ret);
+        const char *s = node->sval;
+        while (1) {
+            emit("r0 <- uint %i", (int) *s);
+            emit("r0 <- call lib.pool.set r1 r%i r0", tmp);
+            emit("r0 <- uint 1");
+            emit("r%i <- uadd r%i r0", tmp, tmp);
+            if (*s == '\0') {
+                break;
+            }
+            s += 1;
+        }
+    }
+    else if (kind_is_float(node->ty->kind))
     {
         emit("r%i <- fint %lu", ret, (unsigned long) node->fval);
     }
@@ -572,6 +589,16 @@ static int emit_ternary(Node *node)
 
 static int emit_return(Node *node)
 {
+    // emit("r0 <- uint %i",(int) '-');
+    // emit("putchar r0");
+    // emit("r0 <- uint %i",(int) ' ');
+    // emit("putchar r0");
+    // for (const char *c = curfunc; *c != '\0'; c++) {
+    //     emit("r0 <- uint %i",(int) *c);
+    //     emit("putchar r0");
+    // }
+    // emit("r0 <- uint 10");
+    // emit("putchar r0");
     if (node->retval)
     {
         int i = emit_expr(node->retval);
@@ -609,7 +636,7 @@ static void regs_for_pair_struct(char *name, Type *var, int reg)
 
 static void regs_for_struct(char *name, Type *var, Vector *inits, int *n)
 {
-    if (var->kind == KIND_STRUCT)
+    if (var->kind == KIND_STRUCT && var->is_struct == true)
     {
         if (inits && *n < vec_len(inits))
         {
@@ -627,6 +654,23 @@ static void regs_for_struct(char *name, Type *var, Vector *inits, int *n)
             char *src = vec_get(var->fields->key, i);
             Type *ty2 = dict_get(var->fields, src);
             regs_for_struct(format("%s.%s", name, src), ty2, inits, n);
+        }
+    }
+    else if (var->kind == KIND_ARRAY)
+    {
+        int reg = nregs++;
+        map_put(&locals, name, (void *)(size_t)reg);
+        emit("r0 <- uint %i", var->size);
+        emit("r%i <- call func.malloc r1 r0", reg);
+        int tmp = nregs++;
+        emit("r%i <- reg r%i", tmp, reg);
+        for (int i = 0; i < var->len && *n < vec_len(inits); i++) {
+            Node *node = vec_get(inits, *n);
+            int val = emit_expr(node->initval);
+            emit("r0 <- call lib.pool.set r1 r%i r%i", tmp, val);
+            emit("r0 <- uint 1");
+            emit("r%i <- uadd r%i r0", tmp, tmp);
+            *n += 1;
         }
     }
     else
@@ -655,7 +699,7 @@ static int emit_lvar(Node *node)
         int n = 0;
         regs_for_struct(node->varname, node->ty, node->lvarinit, &n);
     }
-    if (node->ty->kind == KIND_STRUCT)
+    if (node->ty->kind == KIND_STRUCT && node->ty->is_struct == true)
     {
         return emit_struct_all(node->ty, node->varname);
     }
@@ -669,6 +713,9 @@ static int emit_lvar(Node *node)
 
 static int emit_struct_ref(Node *node)
 {
+    if (node->struc->ty->is_struct == false) {
+        return emit_expr(node->struc);
+    }
     if (node->struc->kind == AST_DEREF) {
         Node *struc = node->struc;
         char *field = node->field;
@@ -735,7 +782,7 @@ static int emit_struct_all_mem(Type *ty, int addreg, int *offset)
 
 static int emit_deref(Node *node)
 {
-    if (node->ty->kind == KIND_STRUCT) {
+    if (node->ty->kind == KIND_STRUCT && node->ty->is_struct == true) {
         int from = emit_expr(node->operand);
         int n = 0;
         return emit_struct_all_mem(node->ty, from, &n);
@@ -876,6 +923,12 @@ static void emit_func_prologue(Node *func)
         emit("exit");
     }
     emit_noindent("func func.%s", func->fname, nregs);
+    // for (const char *c = func->fname; *c != '\0'; c++) {
+        // emit("r0 <- uint %i",(int) *c);
+        // emit("putchar r0");
+    // }
+    // emit("r0 <- uint 10");
+    // emit("putchar r0");
     rettype = func->ty->rettype;
     locals = EMPTY_MAP;
     nregs = vec_len(func->params) + 2;
