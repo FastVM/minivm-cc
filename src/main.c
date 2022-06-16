@@ -150,7 +150,7 @@ int main(int argc, char **argv) {
         fclose(out);
         return 0;
     }
-    int res = vm_run_arch_int(buf.nops, buf.ops, NULL);
+    int res = vm_run_arch_int(buf.nops, buf.ops);
     if (res != 0) {
         return 1;
     }
