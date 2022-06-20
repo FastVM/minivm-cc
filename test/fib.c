@@ -12,7 +12,7 @@ int fib(int n) {
 }
 
 int main() {
-    putn(fib(40));
+    putn(fib(10));
     putchar('\n');
     return 0;
 }
