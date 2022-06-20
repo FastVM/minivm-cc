@@ -41,18 +41,6 @@ static bool kind_is_float(int kind)
 
 static int emit_conv_type(Type *from, Type *to, int reg)
 {
-    if (kind_is_int(from->kind) && kind_is_float(to->kind))
-    {
-        int next = nregs++;
-        emit("r%i <- tof r%i", next, reg);
-        return next;
-    }
-    if (kind_is_float(from->kind) && kind_is_int(to->kind))
-    {
-        int next = nregs++;
-        emit("r%i <- ftou r%i", next, reg);
-        return next;
-    }
     return reg;
 }
 
@@ -463,6 +451,7 @@ static int emit_struct_all(Type *ty, char *path)
     if (ty->kind == KIND_STRUCT)
     {
         int reg = nregs++;
+        int tmp = nregs++;
         emit("r%i <- int 0", reg);
         for (int i = vec_len(ty->fields->key) - 1; i >= 0; i--)
         {
@@ -470,7 +459,12 @@ static int emit_struct_all(Type *ty, char *path)
             Type *ent = dict_get(ty->fields, name);
             char *nextpath = format("%s.%s", path, name);
             int val = emit_struct_all(ent, nextpath);
-            emit("r%i <- cons r%i r%i", reg, val, reg);
+            emit("r%i <- int 2", tmp);
+            emit("r%i <- arr r%i", reg, tmp);
+            emit("r%i <- int 0", tmp);
+            emit("set r%i r%i r%i", reg, tmp, val);
+            emit("r%i <- int 1", tmp);
+            emit("set r%i r%i r%i", reg, tmp, val);
         }
         return reg;
     }
@@ -753,13 +747,19 @@ static int emit_struct_all_mem(Type *ty, int addreg, int *offset)
     if (ty->kind == KIND_STRUCT)
     {
         int reg = nregs++;
+        int tmp = nregs++;
         emit("r%i <- int 0", reg);
         for (int i = vec_len(ty->fields->key) - 1; i >= 0; i--)
         {
             char *name = vec_get(ty->fields->key, i);
             Type *ent = dict_get(ty->fields, name);
             int val = emit_struct_all_mem(ent, addreg, offset);
-            emit("r%i <- cons r%i r%i", reg, val, reg);
+            emit("r%i <- int 2", tmp);
+            emit("r%i <- arr r%i", reg, tmp);
+            emit("r%i <- int 0", tmp);
+            emit("set r%i r%i r%i", reg, tmp, val);
+            emit("r%i <- int 1", tmp);
+            emit("set r%i r%i r%i", reg, tmp, val);
         }
         return reg;
     }

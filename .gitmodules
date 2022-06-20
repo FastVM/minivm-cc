@@ -1,4 +1,4 @@
 [submodule "vm"]
 	path = vm
 	url = https://github.com/fastvm/minivm
-	branch = dev
+	branch = ir
