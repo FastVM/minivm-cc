@@ -94,6 +94,7 @@ int main(int argc, char **argv) {
         vec_push(infiles, format("%s/src/stdio.c", rtsrc));
         vec_push(infiles, format("%s/src/bitop.c", rtsrc));
         vec_push(infiles, format("%s/src/start.c", rtsrc));
+        vec_push(infiles, format("%s/src/ta.c", rtsrc));
         vec_push(infiles, format("%s/src/mem.vasm", rtsrc));
         add_include_path(format("%s/include", rtsrc));
     }

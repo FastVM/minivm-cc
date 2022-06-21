@@ -8,7 +8,7 @@
 int main() {
     char mem[] = "hello world";
     int n = 0;
-    while (true) {
+    for (int i = 0; i < 1000; i++) {
         if (malloc(BLOCKSIZE) == NULL) {
             break;
         }

@@ -96,15 +96,45 @@ static char *pathof_node(Node *node)
     }
 }
 
+static int emit_assign_to(Node *from, Node *to)
+{
+    Node *to0 = to;
+    int offset = 0;
+    while (to->kind == AST_STRUCT_REF)
+    {
+        Type *field = dict_get(to->struc->ty->fields, to->field);
+        offset += field->offset;
+        // printf("%s.offset = %d\n", to->field, field->offset);
+        to = to->struc;
+    }
+    int rhs = emit_expr(from);
+    if (to->kind == AST_DEREF)
+    {
+        int lhs = emit_expr(to->operand);
+        // lhs += offset;
+        for (int i = 0; i < from->ty->size; i++)
+        {
+            emit("r0 <- int %d", i + offset);
+            emit("r0 <- add r0 r%i", lhs);
+            emit("r0 <- call lib.pool.set r1 r0 r%i", rhs + i);
+        }
+        return rhs;
+    }
+    else
+    {
+
+        int out = (int)(size_t)map_get(&locals, to->varname);
+        for (int i = 0; i < to->ty->size; i++)
+        {
+            emit("r%i <- reg r%i", out + i + offset, rhs + i);
+        }
+        return out;
+    }
+}
+
 static int emit_assign(Node *node)
 {
-    int rhs = emit_expr(node->right);
-    int out = (int)(size_t)map_get(&locals, node->left->varname);
-    for (int i = 0; i < node->left->ty->size; i++)
-    {
-        emit("r%i <- reg r%i", out + i, rhs + i);
-    }
-    return out;
+    return emit_assign_to(node->right, node->left);
 }
 
 static int emit_binop(Node *node)
@@ -539,15 +569,8 @@ static int emit_lvar(Node *node)
 
 static int emit_struct_ref(Node *node)
 {
-    if (node->struc->ty->is_struct)
-    {
-        return emit_expr(node->struc);
-    }
-    else
-    {
-        int val = emit_expr(node->struc);
-        return val + node->fieldtype->offset;
-    }
+    Type *type = dict_get(node->struc->ty->fields, node->field);
+    return emit_expr(node->struc) + type->offset;
 }
 
 static int emit_deref(Node *node)
@@ -556,7 +579,7 @@ static int emit_deref(Node *node)
     nregs += node->operand->ty->size;
     int tmpreg = nregs++;
     int from = emit_expr(node->operand);
-    for (int i = 0; i < node->operand->ty->size; i++)
+    for (int i = 0; i < node->ty->size; i++)
     {
         emit("r%i <- int %i", tmpreg, i);
         emit("r%i <- add r%i r%i", tmpreg, tmpreg, from);

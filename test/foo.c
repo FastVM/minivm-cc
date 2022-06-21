@@ -5,9 +5,9 @@ struct foo_t;
 typedef struct foo_t foo_t;
 
 struct foo_t {
-    double x;
-    double y;
-    double z;
+    int x;
+    int y;
+    int z;
     foo_t *foo;
 };
 
