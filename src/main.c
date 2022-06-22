@@ -6,13 +6,18 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include "8cc.h"
-#define VM_NO_FILE 1
 #include "../vm/vm/asm.h"
+#include "../vm/vm/ir/toir.h"
+#include "../vm/vm/ir/opt.h"
+#include "../vm/vm/ir/be/js.h"
+#include "../vm/vm/ir/be/lua.h"
 
 enum {
     OUTPUT_RUN,
     OUTPUT_ASM,
     OUTPUT_BC,
+    OUTPUT_JS,
+    OUTPUT_LUA,
 };
 
 static Vector *infiles = &EMPTY_VECTOR;
@@ -23,7 +28,7 @@ static Buffer *cppdefs;
 
 static void usage(int exitcode) {
     fprintf(exitcode ? stderr : stdout,
-            "Usage: vmcc <file>\n\n"
+            "Usage: minivm-cc <file>\n\n"
             "\n"
             "  -n                dont include runtime\n"
             "  -r                runtime directory\n"
@@ -62,6 +67,10 @@ static void parseopt(int argc, char **argv) {
                     outtype = OUTPUT_ASM;
                 } else if (!strcmp(ext, ".bc")) {
                     outtype = OUTPUT_BC;
+                } else if (!strcmp(ext, ".js")) {
+                    outtype = OUTPUT_JS;
+                } else if (!strcmp(ext, ".lua")) {
+                    outtype = OUTPUT_LUA;
                 }
                 break;
             }
@@ -147,6 +156,20 @@ int main(int argc, char **argv) {
     if (outtype == OUTPUT_BC) {
         FILE *out = fopen(outfile, "wb");
         fwrite(buf.ops, sizeof(vm_opcode_t), buf.nops, out);
+        fclose(out);
+        return 0;
+    }
+    if (outtype == OUTPUT_LUA || outtype == OUTPUT_JS) {
+        vm_ir_block_t *blocks = vm_ir_parse(buf.nops, buf.ops);
+        size_t nblocks = buf.nops;
+        vm_ir_opt_const(&nblocks, &blocks);
+        FILE *out = fopen(outfile, "w");
+        if (outtype == OUTPUT_LUA) {
+            vm_ir_be_lua(out, nblocks, blocks);
+        }
+        if (outtype == OUTPUT_JS) {
+            vm_ir_be_js(out, nblocks, blocks);
+        }
         fclose(out);
         return 0;
     }

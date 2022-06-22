@@ -25,7 +25,7 @@ typedef struct
 } Heap;
 
 #define heap() (*(Heap **)8)
-#define heap_limit() (1000000)
+#define heap_limit() (900000)
 #define heap_split_thresh() 0x10
 #define heap_max_blocks() 0x1000
 
