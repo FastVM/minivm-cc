@@ -576,7 +576,7 @@ static int emit_struct_ref(Node *node)
 static int emit_deref(Node *node)
 {
     int outreg = nregs;
-    nregs += node->operand->ty->size;
+    nregs += node->ty->size;
     int tmpreg = nregs++;
     int from = emit_expr(node->operand);
     for (int i = 0; i < node->ty->size; i++)
