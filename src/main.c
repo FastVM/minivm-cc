@@ -162,7 +162,7 @@ int main(int argc, char **argv) {
     if (outtype == OUTPUT_LUA || outtype == OUTPUT_JS) {
         vm_ir_block_t *blocks = vm_ir_parse(buf.nops, buf.ops);
         size_t nblocks = buf.nops;
-        vm_ir_opt_const(&nblocks, &blocks);
+        vm_ir_opt_all(&nblocks, &blocks);
         FILE *out = fopen(outfile, "w");
         if (outtype == OUTPUT_LUA) {
             vm_ir_be_lua(out, nblocks, blocks);
