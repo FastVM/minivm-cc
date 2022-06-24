@@ -116,7 +116,7 @@ static int emit_assign_to(Node *from, Node *to)
         {
             emit("r0 <- int %d", i + offset);
             emit("r0 <- add r0 r%i", lhs);
-            emit("r0 <- call lib.pool.set r1 r0 r%i", rhs + i);
+            emit("set r1 r0 r%i", rhs + i);
         }
         return rhs;
     }
@@ -583,7 +583,7 @@ static int emit_deref(Node *node)
     {
         emit("r%i <- int %i", tmpreg, i);
         emit("r%i <- add r%i r%i", tmpreg, tmpreg, from);
-        emit("r%i <- call lib.pool.get r1 r%i", outreg + i, tmpreg);
+        emit("r%i <- get r1 r%i", outreg + i, tmpreg);
     }
     return outreg;
 }

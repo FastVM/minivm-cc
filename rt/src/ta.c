@@ -24,7 +24,7 @@ typedef struct
     size_t top;   // top free addr
 } Heap;
 
-#define heap() (*(Heap **)8)
+#define heap() ((Heap *)16)
 #define heap_limit() (900000)
 #define heap_split_thresh() 0x10
 #define heap_max_blocks() 0x1000
@@ -115,12 +115,10 @@ static void compact()
 
 bool ta_init(void)
 {
-    heap() = (Heap *)16;
-
     heap()->free = NULL;
     heap()->used = NULL;
-    heap()->fresh = (Block *)(24);
-    heap()->top = (size_t)(32 + heap_max_blocks());
+    heap()->fresh = (Block *)(20);
+    heap()->top = (size_t)(20 + heap_max_blocks());
 
     Block *block = heap()->fresh;
     size_t i = heap_max_blocks() - 1;

@@ -1,8 +1,8 @@
-CC=gcc
-OPT=-O3
+CC?=gcc
+OPT?=-O3
 8OBJS=cpp.o debug.o dict.o gen.o lex.o vector.o parse.o buffer.o map.o \
      error.o path.o file.o set.o encoding.o
-VOBJS=asm.o jump.o int/run.o int/comp.o int/gc.o reguse.o ir/build.o ir/toir.o ir/opt/const.o ir/opt/arg.o ir/opt/dead.o ir/info.o ir/be/js.o ir/be/lua.o
+VOBJS=asm.o jump.o int/run.o int/comp.o int/gc.o reguse.o ir/build.o ir/toir.o ir/opt/const.o ir/opt/arg.o ir/opt/reg.o ir/opt/dead.o ir/info.o ir/be/js.o ir/be/lua.o ir/be/jit.o
 
 REAL_OPT=$(OPT)
 
@@ -23,8 +23,8 @@ obj/vm/main.o:
 	$(CC) $(REAL_OPT) -o obj/vm/main.o -c vm/util/main.c $(CFLAGS) $(FLAGS)
 
 $(VOBJS): $(@:%.o=vm/vm/%.c) src/8cc.h src/keyword.inc
-	mkdir -p obj/vm/$(dir $(basename $(@)))
-	$(CC) -DVM_GC_ALLOC='1<<26' $(REAL_OPT) -o obj/vm/$(@) -c $(@:%.o=vm/vm/%.c) $(CFLAGS) $(FLAGS)
+	@mkdir -p obj/vm/$(dir $(basename $(@)))
+	$(CC) $(REAL_OPT) -o obj/vm/$(@) -c $(@:%.o=vm/vm/%.c) $(CFLAGS) $(FLAGS)
 
 $(8OBJS) main.o: $(@:%.o=src/%.c) src/8cc.h src/keyword.inc
 	@mkdir -p obj/cc
