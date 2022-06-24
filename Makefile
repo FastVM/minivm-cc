@@ -2,7 +2,7 @@ CC=gcc
 OPT=-O3
 8OBJS=cpp.o debug.o dict.o gen.o lex.o vector.o parse.o buffer.o map.o \
      error.o path.o file.o set.o encoding.o
-VOBJS=asm.o jump.o int/run.o int/comp.o int/gc.o reguse.o ir/build.o ir/toir.o ir/opt/const.o ir/opt/dead.o ir/info.o ir/be/js.o ir/be/lua.o
+VOBJS=asm.o jump.o int/run.o int/comp.o int/gc.o reguse.o ir/build.o ir/toir.o ir/opt/const.o ir/opt/arg.o ir/opt/dead.o ir/info.o ir/be/js.o ir/be/lua.o
 
 REAL_OPT=$(OPT)
 

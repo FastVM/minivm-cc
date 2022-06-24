@@ -1,7 +1,5 @@
 
-int putchar(int c);
-
-int putn(int n);
+#include <stdio.h>
 
 int fib(int n) {
     if (n < 2) {
@@ -12,7 +10,7 @@ int fib(int n) {
 }
 
 int main() {
-    putn(fib(35));
+    putn(fib(40));
     putchar('\n');
     return 0;
 }
