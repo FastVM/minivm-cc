@@ -11,9 +11,11 @@
 #include "../vm/vm/ir/opt.h"
 #include "../vm/vm/ir/be/js.h"
 #include "../vm/vm/ir/be/lua.h"
+#include "../vm/vm/ir/be/jit.h"
 
 enum {
     OUTPUT_RUN,
+    OUTPUT_JIT,
     OUTPUT_ASM,
     OUTPUT_BC,
     OUTPUT_JS,
@@ -28,8 +30,9 @@ static Buffer *cppdefs;
 
 static void usage(int exitcode) {
     fprintf(exitcode ? stderr : stdout,
-            "Usage: minivm-cc <file>\n\n"
+            "Usage: minivm-cc <file>\n"
             "\n"
+            "  -j(on|off)        turn jit on or off\n"
             "  -n                dont include runtime\n"
             "  -r                runtime directory\n"
             "  -h                print this help\n"
@@ -45,7 +48,7 @@ static char *filetype(char *name) {
     return &name[where];
 }
 
-static void parseopt(int argc, char **argv) {
+static int parseopt(int argc, char **argv) {
     cppdefs = make_buffer();
     int i = 1;
     while (i < argc) {
@@ -60,6 +63,18 @@ static void parseopt(int argc, char **argv) {
                 rtsrc = argv[i++];
                 break;
             }
+            case 'j': {
+                arg += 2;
+                if (!strcmp(arg, "on")) {
+                    outtype = OUTPUT_JIT;
+                } else if (!strcmp(arg, "off")) {
+                    outtype = OUTPUT_RUN;
+                } else {
+                    fprintf(stderr, "unknown jit option: -j%s\n", arg);
+                    usage(1);
+                }
+                break;
+            }
             case 'o': {
                 outfile = argv[i++];
                 char *ext = filetype(outfile);   
@@ -71,6 +86,9 @@ static void parseopt(int argc, char **argv) {
                     outtype = OUTPUT_JS;
                 } else if (!strcmp(ext, ".lua")) {
                     outtype = OUTPUT_LUA;
+                } else {
+                    fprintf(stderr, "unknown file extension: %s\n", ext);
+                    usage(1);
                 }
                 break;
             }
@@ -86,6 +104,7 @@ static void parseopt(int argc, char **argv) {
             vec_push(infiles, arg);
         }
     }
+    return 0;
 }
 
 
@@ -149,7 +168,7 @@ int main(int argc, char **argv) {
         return 0;
     }
     // printf("%s\n", src->body);
-    vm_asm_buf_t buf = vm_asm(src->body);
+    vm_bc_buf_t buf = vm_asm(src->body);
     if (buf.nops == 0) {
         return 1;
     }
@@ -159,18 +178,22 @@ int main(int argc, char **argv) {
         fclose(out);
         return 0;
     }
-    if (outtype == OUTPUT_LUA || outtype == OUTPUT_JS) {
+    if (outtype == OUTPUT_LUA || outtype == OUTPUT_JS || outtype == OUTPUT_JIT) {
         vm_ir_block_t *blocks = vm_ir_parse(buf.nops, buf.ops);
         size_t nblocks = buf.nops;
         vm_ir_opt_all(&nblocks, &blocks);
-        FILE *out = fopen(outfile, "w");
-        if (outtype == OUTPUT_LUA) {
-            vm_ir_be_lua(out, nblocks, blocks);
+        if (outtype == OUTPUT_JIT) {
+            vm_ir_be_jit(nblocks, blocks);
+        } else {
+            FILE *out = fopen(outfile, "w");
+            if (outtype == OUTPUT_LUA) {
+                vm_ir_be_lua(out, nblocks, blocks);
+            }
+            if (outtype == OUTPUT_JS) {
+                vm_ir_be_js(out, nblocks, blocks);
+            }
+            fclose(out);
         }
-        if (outtype == OUTPUT_JS) {
-            vm_ir_be_js(out, nblocks, blocks);
-        }
-        fclose(out);
         return 0;
     }
     int res = vm_run_arch_int(buf.nops, buf.ops);
