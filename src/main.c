@@ -9,17 +9,13 @@
 #include "../vm/vm/asm.h"
 #include "../vm/vm/ir/toir.h"
 #include "../vm/vm/ir/opt.h"
-#include "../vm/vm/ir/be/js.h"
-#include "../vm/vm/ir/be/lua.h"
 #include "../vm/vm/ir/be/jit.h"
 
 enum {
     OUTPUT_RUN,
+    OUTPUT_BC,
     OUTPUT_JIT,
     OUTPUT_ASM,
-    OUTPUT_BC,
-    OUTPUT_JS,
-    OUTPUT_LUA,
 };
 
 static Vector *infiles = &EMPTY_VECTOR;
@@ -82,10 +78,6 @@ static int parseopt(int argc, char **argv) {
                     outtype = OUTPUT_ASM;
                 } else if (!strcmp(ext, ".bc")) {
                     outtype = OUTPUT_BC;
-                } else if (!strcmp(ext, ".js")) {
-                    outtype = OUTPUT_JS;
-                } else if (!strcmp(ext, ".lua")) {
-                    outtype = OUTPUT_LUA;
                 } else {
                     fprintf(stderr, "unknown file extension: %s\n", ext);
                     usage(1);
@@ -178,21 +170,12 @@ int main(int argc, char **argv) {
         fclose(out);
         return 0;
     }
-    if (outtype == OUTPUT_LUA || outtype == OUTPUT_JS || outtype == OUTPUT_JIT) {
+    if (outtype == OUTPUT_JIT) {
         vm_ir_block_t *blocks = vm_ir_parse(buf.nops, buf.ops);
         size_t nblocks = buf.nops;
         vm_ir_opt_all(&nblocks, &blocks);
         if (outtype == OUTPUT_JIT) {
             vm_ir_be_jit(nblocks, blocks);
-        } else {
-            FILE *out = fopen(outfile, "w");
-            if (outtype == OUTPUT_LUA) {
-                vm_ir_be_lua(out, nblocks, blocks);
-            }
-            if (outtype == OUTPUT_JS) {
-                vm_ir_be_js(out, nblocks, blocks);
-            }
-            fclose(out);
         }
         return 0;
     }

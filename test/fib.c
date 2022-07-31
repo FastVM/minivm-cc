@@ -1,5 +1,5 @@
 
-#include <stdio.h>
+int putchar(int c);
 
 int fib(int n) {
     if (n < 2) {
