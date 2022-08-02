@@ -1,39 +1,109 @@
 
 #include "../vm/vm/lib.h"
-#include "../vm/vm/ir/be/gc.h"
 #include "../rt/include/bits/raylib.h"
 
-vm_value_t VMInitWindow(vm_gc_t *gc, vm_value_t a1, vm_value_t a2) {
-    InitWindow(VM_VALUE_GET_INT(a1), VM_VALUE_GET_INT(a2), "MiniVM Window");
-    return VM_VALUE_SET_INT(0);
+#define VM_MEM ((vm_value_t) {.ival = 3})
+
+int vm_extern_strlen(ptrdiff_t *a1) {
+    int i = 0;
+    for (;;) {
+        if (a1[i] == 0) {
+            return i;
+        }
+        i += 1;
+    }
 }
 
-vm_value_t VMCloseWindow(vm_gc_t *gc) {
-    CloseWindow();
-    return VM_VALUE_SET_INT(0);
+char *vm_extern_to_string(ptrdiff_t *a1) {
+    int max = vm_extern_strlen(a1);
+    char *ret = malloc(sizeof(char) * (max + 1));
+    for (int i = 0; i <= max; i++) {
+        ret[i] = (char) a1[i];
+        printf("%c == %zi\n", ret[i], a1[i]);
+    }
+    return ret;
 }
 
-vm_value_t VMWindowShouldClose(vm_gc_t *gc) {
-    return VM_VALUE_SET_INT((size_t) WindowShouldClose());
-}
-
-vm_value_t VMBeginDrawing(vm_gc_t *gc) {
-    BeginDrawing();
-    return VM_VALUE_SET_INT(0);
-}
-
-vm_value_t VMEndDrawing(vm_gc_t *gc) {
-    EndDrawing();
-    return VM_VALUE_SET_INT(0);
-}
-
-vm_value_t VMClearBackground(vm_gc_t *gc, vm_value_t in) {
-    Color color = (Color) {
-        .r = VM_VALUE_GET_INT(vm_gc_get_i(gc, in, 0)),
-        .g = VM_VALUE_GET_INT(vm_gc_get_i(gc, in, 1)),
-        .b = VM_VALUE_GET_INT(vm_gc_get_i(gc, in, 2)),
-        .a = VM_VALUE_GET_INT(vm_gc_get_i(gc, in, 3)),
+Color vm_extern_to_color(ptrdiff_t *in) {
+    Color ret = (Color) {
+        .r = in[0],
+        .g = in[1],
+        .b = in[2],
+        .a = in[3],
     };
-    ClearBackground(color);
-    return VM_VALUE_SET_INT(0);
+    return ret;
+}
+
+Vector2 vm_extern_to_v2(ptrdiff_t *in) {
+    return (Vector2) {
+        .x = in[0],
+        .y = in[1],
+    };
+}
+
+void VMInitWindow(ptrdiff_t a1, ptrdiff_t a2, ptrdiff_t *a3) {
+    char *name = vm_extern_to_string(a3);
+    SetTraceLogLevel(LOG_WARNING);
+    InitWindow(a1, a2, name);
+    free(name);
+}
+
+void VMCloseWindow(void) {
+    CloseWindow();
+}
+
+ptrdiff_t VMWindowShouldClose(void) {
+    return (ptrdiff_t) WindowShouldClose();
+}
+
+void VMBeginDrawing(void) {
+    BeginDrawing();
+}
+
+void VMEndDrawing(void) {
+    EndDrawing();
+}
+
+void VMClearBackground(ptrdiff_t *in) {
+    Color ret = vm_extern_to_color(in);
+    ClearBackground(ret);
+}
+
+ptrdiff_t VMIsKeyDown(ptrdiff_t key) {
+    return (ptrdiff_t) IsKeyDown(key);
+}
+
+ptrdiff_t VMIsKeyUp(ptrdiff_t key) {
+    return (ptrdiff_t) IsKeyUp(key);
+}
+
+ptrdiff_t VMIsKeyPressed(ptrdiff_t key) {
+    return (ptrdiff_t) IsKeyPressed(key);
+}
+
+ptrdiff_t VMIsKeyReleased(ptrdiff_t key) {
+    return (ptrdiff_t) IsKeyReleased(key);
+}
+
+void VMDrawCircleV(ptrdiff_t *pos, ptrdiff_t size, ptrdiff_t *color)
+{
+    DrawCircleV(vm_extern_to_v2(pos), size, vm_extern_to_color(color));
+}
+
+void VMSetTargetFPS(ptrdiff_t fps) {
+    SetTargetFPS(fps);
+}
+
+void VMDrawText(ptrdiff_t *a1, ptrdiff_t a2, ptrdiff_t a3, ptrdiff_t a4, ptrdiff_t *a5) {
+    char *name = vm_extern_to_string(a1);
+    DrawText(name, a2, a3, a4, vm_extern_to_color(a5));
+    free(name);
+}
+
+ptrdiff_t *VMMalloc(ptrdiff_t n) {
+    return vm_malloc(sizeof(ptrdiff_t) * n);
+}
+
+void VMFree(ptrdiff_t *ptr) {
+    // vm_free(ptr);
 }

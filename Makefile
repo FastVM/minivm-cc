@@ -11,7 +11,7 @@ all: bin/minivm-cc bin/minivm-asm
 
 bin/minivm-cc: src/8cc.h main.o $(8OBJS) vm/bin/libminivm.a
 	@mkdir -p bin
-	$(CC) $(REAL_OPT) -o $(@) obj/cc/main.o $(8OBJS:%=obj/cc/%) vm/bin/libminivm.a $(LDFLAGS) -rdynamic -ldl -lraylib -lm -lpthread $(FLAGS)
+	$(CC) $(REAL_OPT) -o $(@) obj/cc/main.o $(8OBJS:%=obj/cc/%) vm/bin/libminivm.a $(LDFLAGS) -rdynamic -ldl -lraylib -lm -lpthread -lgc $(FLAGS)
 
  vm/bin/libminivm.a: vm/vm
 	$(MAKE) -C vm OPT='$(OPT)' CC='$(CC)' CFLAGS='$(CFLAGS)'

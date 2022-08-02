@@ -9,6 +9,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <stdio.h>
+#include <stddef.h>
 #include <stdnoreturn.h>
 #include <time.h>
 
