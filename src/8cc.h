@@ -293,6 +293,8 @@ extern Type *type_float;
 extern Type *type_double;
 extern Type *type_ldouble;
 
+extern Dict *xcache;
+
 #define EMPTY_MAP ((Map){})
 #define EMPTY_VECTOR ((Vector){})
 

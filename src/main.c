@@ -12,7 +12,6 @@
 #include "../vm/vm/ir/be/jit.h"
 
 enum {
-    OUTPUT_RUN,
     OUTPUT_BC,
     OUTPUT_JIT,
     OUTPUT_ASM,
@@ -20,7 +19,7 @@ enum {
 
 static Vector *infiles = &EMPTY_VECTOR;
 static char *outfile;
-static int outtype = OUTPUT_RUN;
+static int outtype = OUTPUT_JIT;
 static char *rtsrc = "rt";
 static Buffer *cppdefs;
 
@@ -63,8 +62,6 @@ static int parseopt(int argc, char **argv) {
                 arg += 2;
                 if (!strcmp(arg, "on")) {
                     outtype = OUTPUT_JIT;
-                } else if (!strcmp(arg, "off")) {
-                    outtype = OUTPUT_RUN;
                 } else {
                     fprintf(stderr, "unknown jit option: -j%s\n", arg);
                     usage(1);
@@ -115,7 +112,6 @@ int main(int argc, char **argv) {
         vec_push(infiles, format("%s/src/bitop.c", rtsrc));
         vec_push(infiles, format("%s/src/start.c", rtsrc));
         vec_push(infiles, format("%s/src/ta.c", rtsrc));
-        vec_push(infiles, format("%s/src/mem.vasm", rtsrc));
         add_include_path(format("%s/include", rtsrc));
     }
     for (int i = 0; i < vec_len(infiles); i++) {
@@ -170,18 +166,11 @@ int main(int argc, char **argv) {
         fclose(out);
         return 0;
     }
+    vm_ir_block_t *blocks = vm_ir_parse(buf.nops, buf.ops);
+    size_t nblocks = buf.nops;
+    vm_ir_opt_all(&nblocks, &blocks);
     if (outtype == OUTPUT_JIT) {
-        vm_ir_block_t *blocks = vm_ir_parse(buf.nops, buf.ops);
-        size_t nblocks = buf.nops;
-        vm_ir_opt_all(&nblocks, &blocks);
-        if (outtype == OUTPUT_JIT) {
-            vm_ir_be_jit(nblocks, blocks);
-        }
-        return 0;
-    }
-    int res = vm_run_arch_int(buf.nops, buf.ops);
-    if (res != 0) {
-        return 1;
+        vm_ir_be_jit(nblocks, blocks);
     }
     return 0;
 }

@@ -751,6 +751,15 @@ static void parse_pragma_operand(Token *tok) {
         enable_warning = true;
     } else if (!strcmp(s, "disable_warning")) {
         enable_warning = false;
+    } else if (!strncmp(s, "minivm", strlen("minivm extern "))) {
+        Token *cmd = read_ident();
+        if (!strcmp(cmd->sval, "extern")) {
+            Token *name = read_ident();
+            Token *value = lex();
+            dict_put(xcache, name->sval, value->sval);
+        } else {
+            errort(tok, "unknown #pragma minivm: %s", cmd->sval);
+        }
     } else {
         errort(tok, "unknown #pragma: %s", s);
     }
