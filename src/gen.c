@@ -405,8 +405,8 @@ static int emit_arg_pack(int src, int count)
         for (int i = 0; i < count; i++)
         {
             emit("r0 <- int %i", i*sizeof(ptrdiff_t));
-            emit("r0 <- add r0 %i", out);
-            emit("write r0 r%i", src);
+            emit("r0 <- add r0 r%i", out);
+            emit("write r0 r%i", src+i);
         }
         return out;
     }
@@ -420,7 +420,7 @@ static void emit_arg_unpack(int out, int count, int src)
         for (int i = 0; i < count; i++)
         {
             emit("r0 <- int %i", i*sizeof(ptrdiff_t));
-            emit("r0 <- add r0 %i", src);
+            emit("r0 <- add r0 r%i", src);
             emit("r%i <- read r0", i+out);
         }
     }

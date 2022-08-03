@@ -16,10 +16,9 @@ int vm_extern_strlen(ptrdiff_t *a1) {
 
 char *vm_extern_to_string(ptrdiff_t *a1) {
     int max = vm_extern_strlen(a1);
-    char *ret = malloc(sizeof(char) * (max + 1));
-    for (int i = 0; i <= max; i++) {
+    char *ret = vm_alloc0(sizeof(char) * (max + 1));
+    for (int i = 0; i < max; i++) {
         ret[i] = (char) a1[i];
-        printf("%c == %zi\n", ret[i], a1[i]);
     }
     return ret;
 }
@@ -45,7 +44,6 @@ void VMInitWindow(ptrdiff_t a1, ptrdiff_t a2, ptrdiff_t *a3) {
     char *name = vm_extern_to_string(a3);
     SetTraceLogLevel(LOG_WARNING);
     InitWindow(a1, a2, name);
-    free(name);
 }
 
 void VMCloseWindow(void) {
@@ -97,11 +95,17 @@ void VMSetTargetFPS(ptrdiff_t fps) {
 void VMDrawText(ptrdiff_t *a1, ptrdiff_t a2, ptrdiff_t a3, ptrdiff_t a4, ptrdiff_t *a5) {
     char *name = vm_extern_to_string(a1);
     DrawText(name, a2, a3, a4, vm_extern_to_color(a5));
-    free(name);
 }
 
 ptrdiff_t *VMMalloc(ptrdiff_t n) {
+    // void *ret = vm_malloc(sizeof(ptrdiff_t) * n);
+    // fprintf(stderr, "%p\n", ret);
+    // return ret;
     return vm_malloc(sizeof(ptrdiff_t) * n);
+}
+
+ptrdiff_t *VMRealloc(ptrdiff_t *ptr, ptrdiff_t n) {
+    return vm_realloc(ptr, sizeof(ptrdiff_t) * n);
 }
 
 void VMFree(ptrdiff_t *ptr) {

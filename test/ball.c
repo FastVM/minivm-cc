@@ -10,7 +10,7 @@ int main(void)
 
     Vector2 ballPosition = {winsize.x / 2, winsize.y / 2};
 
-    // SetTargetFPS(60);
+    SetTargetFPS(60);
     while (!WindowShouldClose())
     {
         // if (IsKeyDown(KEY_RIGHT))
