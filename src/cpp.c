@@ -751,15 +751,6 @@ static void parse_pragma_operand(Token *tok) {
         enable_warning = true;
     } else if (!strcmp(s, "disable_warning")) {
         enable_warning = false;
-    } else if (!strncmp(s, "minivm", strlen("minivm extern "))) {
-        Token *cmd = read_ident();
-        if (!strcmp(cmd->sval, "extern")) {
-            Token *name = read_ident();
-            Token *value = lex();
-            dict_put(xcache, name->sval, value->sval);
-        } else {
-            errort(tok, "unknown #pragma minivm: %s", cmd->sval);
-        }
     } else {
         errort(tok, "unknown #pragma: %s", s);
     }
@@ -919,6 +910,10 @@ static void handle_include_level_macro(Token *tmpl) {
     make_token_pushback(tmpl, TNUMBER, format("%d", stream_depth() - 1));
 }
 
+static void handle_minivm_macro(Token *tmpl) {
+    make_token_pushback(tmpl, TNUMBER, "1");
+}
+
 /*
  * Initializer
  */
@@ -949,6 +944,8 @@ static void init_predefined_macros() {
     // vec_push(std_include_path, "/usr/include");
     // vec_push(std_include_path, "/usr/include/linux");
     // vec_push(std_include_path, "/usr/include/x86_64-linux-gnu");
+
+    define_special_macro("__MINIVM__", handle_minivm_macro);
 
     define_special_macro("__DATE__", handle_date_macro);
     define_special_macro("__TIME__", handle_time_macro);

@@ -8,8 +8,7 @@
 #include "8cc.h"
 #include "../vm/vm/asm.h"
 #include "../vm/vm/ir/toir.h"
-#include "../vm/vm/ir/opt.h"
-#include "../vm/vm/ir/be/jit.h"
+#include "../vm/vm/ir/be/int3.h"
 
 enum {
     OUTPUT_BC,
@@ -103,12 +102,12 @@ char *get_base_file(void) {
 }
 
 int main(int argc, char **argv) {
-    vm_init();
     emit_end();
     setbuf(stdout, NULL);
     parseopt(argc, argv);
     Vector *asmbufs = &EMPTY_VECTOR;
     if (rtsrc != NULL) {
+        vec_push(infiles, format("%s/src/mem.vasm", rtsrc));
         vec_push(infiles, format("%s/src/stdio.c", rtsrc));
         vec_push(infiles, format("%s/src/bitop.c", rtsrc));
         vec_push(infiles, format("%s/src/start.c", rtsrc));
@@ -167,10 +166,6 @@ int main(int argc, char **argv) {
         return 0;
     }
     vm_ir_block_t *blocks = vm_ir_parse(buf.nops, buf.ops);
-    size_t nblocks = buf.nops;
-    vm_ir_opt_all(&nblocks, &blocks);
-    if (outtype == OUTPUT_JIT) {
-        vm_ir_be_jit(nblocks, blocks);
-    }
+    vm_run_arch_int(buf.nops, buf.ops, NULL);
     return 0;
 }

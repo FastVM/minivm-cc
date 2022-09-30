@@ -1,0 +1,43 @@
+func __minivm_enter
+    r0 <- int 0
+    r2 <- get r1 r0
+    r0 <- int 1
+    r2 <- add r2 r0
+    r0 <- int 0
+    set r1 r0 r2
+    ret r1
+end
+
+func __minivm_leave
+    r0 <- int 0
+    r2 <- get r1 r0
+    r0 <- int 1
+    r2 <- sub r2 r0
+    r0 <- int 0
+    set r1 r0 r2
+    ret r1
+end
+
+func __minivm_alloca
+    ret r1
+end
+
+func __minivm_memory
+    r1 <- int 1000000
+    r1 <- arr r1
+    r2 <- int 1
+    r0 <- int 0
+    set r1 r0 r2 
+    ret r1
+end
+
+func __minivm_read
+    r0 <- get r1 r2
+    ret r0
+end
+
+func __minivm_write
+    set r1 r2 r3
+    r0 <- int 0
+    ret r0
+end

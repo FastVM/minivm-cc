@@ -15,7 +15,6 @@ static Buffer *outbuf = &(Buffer){0, 0, 0};
 static const char *curfunc;
 static Map locals;
 static Type *rettype; 
-Dict *xcache = NULL;
 
 static int emit_expr(Node *node);
 
@@ -81,7 +80,8 @@ static void emit_branch_bool(Node *node, char *zero, char *nonzero)
     else
     {
         int nth = emit_expr(node);
-        emit("bb r%i %s%s %s%s", nth, curfunc, zero, curfunc, nonzero);
+        emit("r0 <- int 0");
+        emit("beq r%i r0 %s%s %s%s", nth, curfunc, nonzero, curfunc, zero);
     }
 }
 
@@ -105,7 +105,6 @@ static int emit_assign_to(Node *from, Node *to)
     {
         Type *field = dict_get(to->struc->ty->fields, to->field);
         offset += field->offset;
-        // printf("%s.offset = %d\n", to->field, field->offset);
         to = to->struc;
     }
     int rhs = emit_expr(from);
@@ -117,7 +116,7 @@ static int emit_assign_to(Node *from, Node *to)
         {
             emit("r0 <- int %d", (i + offset) * sizeof(ptrdiff_t));
             emit("r0 <- add r0 r%i", lhs);
-            emit("write r0 r%i", rhs + i);
+            emit("set r1 r0 r%i", rhs + i);
         }
         return rhs;
     }
@@ -125,7 +124,7 @@ static int emit_assign_to(Node *from, Node *to)
     {
 
         int out = (int)(size_t)map_get(&locals, to->varname);
-        for (int i = 0; i < to->ty->size; i++)
+        for (int i = 0; i < from->ty->size; i++)
         {
             emit("r%i <- reg r%i", out + i + offset, rhs + i);
         }
@@ -232,33 +231,33 @@ static int emit_binop(Node *node)
     case '|':
     {
         int ret = nregs++;
-        emit("r%i <- call func.__minivm_bits_or r%i r%i", ret, lhs, rhs);
+        emit("r%i <- call func.__minivm_bits_or r1 r%i r%i", ret, lhs, rhs);
         return ret;
     }
     case '&':
     {
         int ret = nregs++;
-        emit("r%i <- call func.__minivm_bits_and r%i r%i", ret, lhs, rhs);
+        emit("r%i <- call func.__minivm_bits_and r1 r%i r%i", ret, lhs, rhs);
         return ret;
     }
     case '^':
     {
         int ret = nregs++;
-        emit("r%i <- call func.__minivm_bits_xor r%i r%i", ret, lhs, rhs);
+        emit("r%i <- call func.__minivm_bits_xor r1 r%i r%i", ret, lhs, rhs);
         return ret;
     }
     case OP_SHL:
     case OP_SAL:
     {
         int ret = nregs++;
-        emit("r%i <- call func.__minivm_bits_shl r%i r%i", ret, lhs, rhs);
+        emit("r%i <- call func.__minivm_bits_shl r1 r%i r%i", ret, lhs, rhs);
         return ret;
     }
     case OP_SHR:
     case OP_SAR:
     {
         int ret = nregs++;
-        emit("r%i <- call func.__minivm_bits_shr r%i r%i", ret, lhs, rhs);
+        emit("r%i <- call func.__minivm_bits_shr r1 r%i r%i", ret, lhs, rhs);
         return ret;
     }
     case OP_EQ:
@@ -367,14 +366,14 @@ static int emit_literal(Node *node)
     int ret = nregs++;
     if (node->ty->kind == KIND_ARRAY) {
         emit("r0 <- int %i", strlen(node->sval)+1);
-        emit("r%i <- xaddr :VMMalloc", ret);
-        emit("r%i <- dcall r%i r0", ret, ret);
+        emit("r%i <- call __minivm_alloca r1", ret);
+        emit("r%i <- dcall r%i r1 r0", ret, ret);
         int tmp = nregs++;
         emit("r%i <- reg r%i", tmp, ret);
         const char *s = node->sval;
         while (1) {
             emit("r0 <- int %i", (int) *s);
-            emit("write r%i r0", tmp);
+            emit("set r1 r%i r0", tmp);
             emit("r0 <- int %i", (int) sizeof(ptrdiff_t));
             emit("r%i <- add r%i r0", tmp, tmp);
             if (*s == '\0') {
@@ -406,7 +405,7 @@ static int emit_arg_pack(int src, int count)
         {
             emit("r0 <- int %i", i*sizeof(ptrdiff_t));
             emit("r0 <- add r0 r%i", out);
-            emit("write r0 r%i", src+i);
+            emit("r0 <- call __minivm_write r1 r0 r%i", src+i);
         }
         return out;
     }
@@ -421,8 +420,12 @@ static void emit_arg_unpack(int out, int count, int src)
         {
             emit("r0 <- int %i", i*sizeof(ptrdiff_t));
             emit("r0 <- add r0 r%i", src);
-            emit("r%i <- read r0", i+out);
+            emit("r%i <- call __minivm_read r1 r0", i+out);
         }
+    }
+    else
+    {
+        emit("r%i <- reg r%i", out, src);
     }
 }
 
@@ -441,16 +444,8 @@ static const char *emit_args(Vector *vals, Vector *params)
 
 static int emit_func_call(Node *node)
 {
-    const char *name = dict_get(xcache, node->fname);
     const char *args = emit_args(node->args, node->ftype->params);
-    if (name != NULL)
-    {
-        int ret = nregs++;
-        emit("r%i <- xaddr :%s", ret, name);
-        emit("r%i <- dcall r%i%s", ret, ret, args);
-        return ret;
-    }
-    else if (node->kind == AST_FUNCPTR_CALL)
+    if (node->kind == AST_FUNCPTR_CALL)
     {
         error("funcptr call");
     }
@@ -462,7 +457,7 @@ static int emit_func_call(Node *node)
     else
     {
         int ret = nregs++;
-        emit("r%i <- call func.%s %s", ret, node->fname, args);
+        emit("r%i <- call func.%s r1 %s", ret, node->fname, args);
         return ret;
     }
 }
@@ -509,7 +504,8 @@ static int emit_ternary(Node *node)
     char *nz = make_label();
     int nth = emit_expr(node->cond);
     int out = nregs++;
-    emit("bb r%i %s%s %s%s", nth, curfunc, ez, curfunc, nz);
+    emit("r0 <- int 0");
+    emit("beq r%i r0 %s%s %s%s", nth, curfunc, nz, curfunc, ez);
     if (node->then)
     {
         emit_label(nz);
@@ -541,10 +537,12 @@ static int emit_return(Node *node)
     if (node->retval)
     {
         int i = emit_expr(node->retval);
+        // emit("r0 <- call __minivm_leave r1 r2");
         emit("ret r%i", i);
     }
     else
     {
+        // emit("r0 <- call __minivm_leave r1 r2");
         emit("r0 <- int 0");
         emit("ret r0");
     }
@@ -601,7 +599,7 @@ static int emit_deref(Node *node)
     {
         emit("r%i <- int %i", tmpreg, i*sizeof(ptrdiff_t));
         emit("r%i <- add r%i r%i", tmpreg, tmpreg, from);
-        emit("r%i <- read r%i", outreg + i, tmpreg);
+        emit("r%i <- call __minivm_read r1 r%i", outreg + i, tmpreg);
     }
     return outreg;
 }
@@ -713,7 +711,8 @@ static int emit_expr(Node *node)
         char *zero = make_label();
         char *nonzero = make_label();
         char *out = make_label();
-        emit("bb r%i %s%s %s%s", reg, curfunc, zero, curfunc, nonzero);
+        emit("r0 <- int 0");
+        emit("beq r%i r0 %s%s %s%s", reg, curfunc, nonzero, curfunc, zero);
         int ret = nregs++;
         emit_label(zero);
         emit("r%i <- int 1", ret);
@@ -752,7 +751,8 @@ static void emit_func_prologue(Node *func)
     if (!strcmp(func->fname, "_start"))
     {
         emit_noindent("@__entry");
-        emit("r0 <- call func.%s", func->fname);
+        emit("r1 <- call __minivm_memory");
+        emit("r0 <- call func.%s r1", func->fname);
         emit("exit");
     }
     emit_noindent("func func.%s", func->fname, nregs);
@@ -783,8 +783,9 @@ void emit_toplevel(Node *v)
     if (v->kind == AST_FUNC)
     {
         emit_func_prologue(v);
+        // emit("r2 <- call __minivm_enter r1");
         emit_expr(v->body);
-        emit("r0 <- int 0");
+        // emit("r0 <- call __minivm_leave r1 r2");
         emit("ret r0");
         emit_noindent("end\n");
     }

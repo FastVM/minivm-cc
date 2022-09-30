@@ -50,14 +50,6 @@ static char *pos_string(Pos *p) {
 static void skip_block_comment(void);
 
 void lex_init(char *filename) {
-    if (xcache == NULL)
-    {
-        xcache = make_dict();
-        dict_put(xcache, "malloc", "VMMalloc");
-        dict_put(xcache, "calloc", "VMCalloc");
-        dict_put(xcache, "realloc", "VMRealloc");
-        dict_put(xcache, "free", "VMFree");
-    }
     buffers = make_vector1(make_vector());
     if (!strcmp(filename, "-")) {
         stream_push(make_file(stdin, "-"));
