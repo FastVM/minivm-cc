@@ -23,4 +23,5 @@ void puts(const char *str) {
         putchar(chr);
         str += 1;
     }
+    putchar('\n');
 }

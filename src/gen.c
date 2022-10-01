@@ -19,7 +19,7 @@ static Map locals;
 static Type *rettype;
 static Vector globalinit = EMPTY_VECTOR;
 static Vector globalinitval = EMPTY_VECTOR;
-static int initmem = 2;
+static int initmem = 16;
 int stackn = 0;
 
 static int emit_expr(Node *node);
@@ -119,16 +119,24 @@ static int emit_assign_to(Node *from, Node *to) {
                 emit("set r1 r0 r%i", rhs + i);
             }
         }
-        return rhs;
-    } else {
+    } else if (to->kind == AST_LVAR) {
         int out = (int)(size_t)map_get(&locals, to->varname);
         for (int i = 0; i < from->ty->size; i++) {
             emit("r0 <- int %i", i);
             emit("r0 <- add r0 r%i", out);
             emit("set r1 r0 r%i", rhs + i);
         }
-        return out;
+    } else if (to->kind == AST_GVAR) {
+        int out = (int)(size_t)map_get(&globals, to->varname);
+        // printf("%s: [%i]\n", to->varname, out);
+        for (int i = 0; i < to->ty->size; i++) {
+            emit("r0 <- int %i", out + i + offset);
+            emit("set r1 r0 r%i", rhs + i);
+        }
+    } else {
+        error("assign to bad thing");
     }
+    return rhs;
 }
 
 static int emit_assign(Node *node) {
@@ -554,7 +562,7 @@ static int emit_gvar(Node *node) {
     nregs += node->ty->size;
     int where = (int)(size_t)map_get(&globals, node->varname);
     for (int i = 0; i < node->ty->size; i++) {
-        emit("r0 <- int %i", where);
+        emit("r0 <- int %i", where+i);
         emit("r%i <- get r1 r0", outreg + i);
     }
     return outreg;
@@ -625,7 +633,7 @@ static int emit_expr(Node *node) {
             }
             if (op->kind == AST_GVAR) {
                 int ret = nregs++;
-                int loc = (int)(size_t)map_get(&locals, op->varname);
+                int loc = (int)(size_t)map_get(&globals, op->varname);
                 emit("r%i <- int %i", ret, loc+off);
                 return ret;
             }
