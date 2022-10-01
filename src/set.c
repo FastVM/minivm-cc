@@ -15,6 +15,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+
 #include "8cc.h"
 
 Set *set_add(Set *s, char *v) {

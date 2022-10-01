@@ -25,12 +25,13 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+
 #include "8cc.h"
 
 static Vector *buffers = &EMPTY_VECTOR;
-static Token *space_token = &(Token){ TSPACE };
-static Token *newline_token = &(Token){ TNEWLINE };
-static Token *eof_token = &(Token){ TEOF };
+static Token *space_token = &(Token){TSPACE};
+static Token *newline_token = &(Token){TNEWLINE};
+static Token *eof_token = &(Token){TEOF};
 
 typedef struct {
     int line;
@@ -45,7 +46,7 @@ static char *pos_string(Pos *p) {
 }
 
 #define errorp(p, ...) errorf(__FILE__ ":" STR(__LINE__), pos_string(&p), __VA_ARGS__)
-#define warnp(p, ...)  warnf(__FILE__ ":" STR(__LINE__), pos_string(&p), __VA_ARGS__)
+#define warnp(p, ...) warnf(__FILE__ ":" STR(__LINE__), pos_string(&p), __VA_ARGS__)
 
 static void skip_block_comment(void);
 
@@ -63,7 +64,7 @@ void lex_init(char *filename) {
 
 static Pos get_pos(int delta) {
     File *f = current_file();
-    return (Pos){ f->line, f->column + delta };
+    return (Pos){f->line, f->column + delta};
 }
 
 static void mark() {
@@ -83,27 +84,27 @@ static Token *make_token(Token *tmpl) {
 }
 
 static Token *make_ident(char *p) {
-    return make_token(&(Token){ TIDENT, .sval = p });
+    return make_token(&(Token){TIDENT, .sval = p});
 }
 
 static Token *make_strtok(char *s, int len, int enc) {
-    return make_token(&(Token){ TSTRING, .sval = s, .slen = len, .enc = enc });
+    return make_token(&(Token){TSTRING, .sval = s, .slen = len, .enc = enc});
 }
 
 static Token *make_keyword(int id) {
-    return make_token(&(Token){ TKEYWORD, .id = id });
+    return make_token(&(Token){TKEYWORD, .id = id});
 }
 
 static Token *make_number(char *s) {
-    return make_token(&(Token){ TNUMBER, .sval = s });
+    return make_token(&(Token){TNUMBER, .sval = s});
 }
 
 static Token *make_invalid(char c) {
-    return make_token(&(Token){ TINVALID, .c = c });
+    return make_token(&(Token){TINVALID, .c = c});
 }
 
 static Token *make_char(int c, int enc) {
-    return make_token(&(Token){ TCHAR, .c = c, .enc = enc });
+    return make_token(&(Token){TCHAR, .c = c, .enc = enc});
 }
 
 static bool iswhitespace(int c) {
@@ -161,7 +162,8 @@ static bool do_skip_space() {
 static bool skip_space() {
     if (!do_skip_space())
         return false;
-    while (do_skip_space());
+    while (do_skip_space())
+        ;
     return true;
 }
 
@@ -266,10 +268,18 @@ static int read_hex_char() {
     int r = 0;
     for (;; c = readc()) {
         switch (c) {
-        case '0' ... '9': r = (r << 4) | (c - '0'); continue;
-        case 'a' ... 'f': r = (r << 4) | (c - 'a' + 10); continue;
-        case 'A' ... 'F': r = (r << 4) | (c - 'A' + 10); continue;
-        default: unreadc(c); return r;
+            case '0' ... '9':
+                r = (r << 4) | (c - '0');
+                continue;
+            case 'a' ... 'f':
+                r = (r << 4) | (c - 'a' + 10);
+                continue;
+            case 'A' ... 'F':
+                r = (r << 4) | (c - 'A' + 10);
+                continue;
+            default:
+                unreadc(c);
+                return r;
         }
     }
 }
@@ -292,10 +302,17 @@ static int read_universal_char(int len) {
     for (int i = 0; i < len; i++) {
         char c = readc();
         switch (c) {
-        case '0' ... '9': r = (r << 4) | (c - '0'); continue;
-        case 'a' ... 'f': r = (r << 4) | (c - 'a' + 10); continue;
-        case 'A' ... 'F': r = (r << 4) | (c - 'A' + 10); continue;
-        default: errorp(p, "invalid universal character: %c", c);
+            case '0' ... '9':
+                r = (r << 4) | (c - '0');
+                continue;
+            case 'a' ... 'f':
+                r = (r << 4) | (c - 'a' + 10);
+                continue;
+            case 'A' ... 'F':
+                r = (r << 4) | (c - 'A' + 10);
+                continue;
+            default:
+                errorp(p, "invalid universal character: %c", c);
         }
     }
     if (!is_valid_ucn(r))
@@ -315,20 +332,35 @@ static int read_escaped_char() {
     // See "Reflections on Trusting Trust" by Ken Thompson for more info.
     // http://cm.bell-labs.com/who/ken/trust.html
     switch (c) {
-    case '\'': case '"': case '?': case '\\':
-        return c;
-    case 'a': return '\a';
-    case 'b': return '\b';
-    case 'f': return '\f';
-    case 'n': return '\n';
-    case 'r': return '\r';
-    case 't': return '\t';
-    case 'v': return '\v';
-    case 'e': return '\033';  // '\e' is GNU extension
-    case 'x': return read_hex_char();
-    case 'u': return read_universal_char(4);
-    case 'U': return read_universal_char(8);
-    case '0' ... '7': return read_octal_char(c);
+        case '\'':
+        case '"':
+        case '?':
+        case '\\':
+            return c;
+        case 'a':
+            return '\a';
+        case 'b':
+            return '\b';
+        case 'f':
+            return '\f';
+        case 'n':
+            return '\n';
+        case 'r':
+            return '\r';
+        case 't':
+            return '\t';
+        case 'v':
+            return '\v';
+        case 'e':
+            return '\033';  // '\e' is GNU extension
+        case 'x':
+            return read_hex_char();
+        case 'u':
+            return read_universal_char(4);
+        case 'U':
+            return read_universal_char(8);
+        case '0' ... '7':
+            return read_octal_char(c);
     }
     warnp(p, "unknown escape character: \\%c", c);
     return c;
@@ -438,78 +470,106 @@ static Token *do_read_token() {
     mark();
     int c = readc();
     switch (c) {
-    case '\n': return newline_token;
-    case ':': return make_keyword(next('>') ? ']' : ':');
-    case '#': return make_keyword(next('#') ? KHASHHASH : '#');
-    case '+': return read_rep2('+', OP_INC, '=', OP_A_ADD, '+');
-    case '*': return read_rep('=', OP_A_MUL, '*');
-    case '=': return read_rep('=', OP_EQ, '=');
-    case '!': return read_rep('=', OP_NE, '!');
-    case '&': return read_rep2('&', OP_LOGAND, '=', OP_A_AND, '&');
-    case '|': return read_rep2('|', OP_LOGOR, '=', OP_A_OR, '|');
-    case '^': return read_rep('=', OP_A_XOR, '^');
-    case '"': return read_string(ENC_NONE);
-    case '\'': return read_char(ENC_NONE);
-    case '/': return make_keyword(next('=') ? OP_A_DIV : '/');
-    case 'a' ... 't': case 'v' ... 'z': case 'A' ... 'K':
-    case 'M' ... 'T': case 'V' ... 'Z': case '_': case '$':
-    case 0x80 ... 0xFD:
-        return read_ident(c);
-    case '0' ... '9':
-        return read_number(c);
-    case 'L': case 'U': {
-        // Wide/char32_t character/string literal
-        int enc = (c == 'L') ? ENC_WCHAR : ENC_CHAR32;
-        if (next('"'))  return read_string(enc);
-        if (next('\'')) return read_char(enc);
-        return read_ident(c);
-    }
-    case 'u':
-        if (next('"')) return read_string(ENC_CHAR16);
-        if (next('\'')) return read_char(ENC_CHAR16);
-        // C11 6.4.5: UTF-8 string literal
-        if (next('8')) {
-            if (next('"'))
-                return read_string(ENC_UTF8);
-            unreadc('8');
-        }
-        return read_ident(c);
-    case '.':
-        if (isdigit(peek()))
+        case '\n':
+            return newline_token;
+        case ':':
+            return make_keyword(next('>') ? ']' : ':');
+        case '#':
+            return make_keyword(next('#') ? KHASHHASH : '#');
+        case '+':
+            return read_rep2('+', OP_INC, '=', OP_A_ADD, '+');
+        case '*':
+            return read_rep('=', OP_A_MUL, '*');
+        case '=':
+            return read_rep('=', OP_EQ, '=');
+        case '!':
+            return read_rep('=', OP_NE, '!');
+        case '&':
+            return read_rep2('&', OP_LOGAND, '=', OP_A_AND, '&');
+        case '|':
+            return read_rep2('|', OP_LOGOR, '=', OP_A_OR, '|');
+        case '^':
+            return read_rep('=', OP_A_XOR, '^');
+        case '"':
+            return read_string(ENC_NONE);
+        case '\'':
+            return read_char(ENC_NONE);
+        case '/':
+            return make_keyword(next('=') ? OP_A_DIV : '/');
+        case 'a' ... 't':
+        case 'v' ... 'z':
+        case 'A' ... 'K':
+        case 'M' ... 'T':
+        case 'V' ... 'Z':
+        case '_':
+        case '$':
+        case 0x80 ... 0xFD:
+            return read_ident(c);
+        case '0' ... '9':
             return read_number(c);
-        if (next('.')) {
-            if (next('.'))
-                return make_keyword(KELLIPSIS);
-            return make_ident("..");
+        case 'L':
+        case 'U': {
+            // Wide/char32_t character/string literal
+            int enc = (c == 'L') ? ENC_WCHAR : ENC_CHAR32;
+            if (next('"')) return read_string(enc);
+            if (next('\'')) return read_char(enc);
+            return read_ident(c);
         }
-        return make_keyword('.');
-    case '(': case ')': case ',': case ';': case '[': case ']': case '{':
-    case '}': case '?': case '~':
-        return make_keyword(c);
-    case '-':
-        if (next('-')) return make_keyword(OP_DEC);
-        if (next('>')) return make_keyword(OP_ARROW);
-        if (next('=')) return make_keyword(OP_A_SUB);
-        return make_keyword('-');
-    case '<':
-        if (next('<')) return read_rep('=', OP_A_SAL, OP_SAL);
-        if (next('=')) return make_keyword(OP_LE);
-        if (next(':')) return make_keyword('[');
-        if (next('%')) return make_keyword('{');
-        return make_keyword('<');
-    case '>':
-        if (next('=')) return make_keyword(OP_GE);
-        if (next('>')) return read_rep('=', OP_A_SAR, OP_SAR);
-        return make_keyword('>');
-    case '%': {
-        Token *tok = read_hash_digraph();
-        if (tok)
-            return tok;
-        return read_rep('=', OP_A_MOD, '%');
-    }
-    case EOF:
-        return eof_token;
-    default: return make_invalid(c);
+        case 'u':
+            if (next('"')) return read_string(ENC_CHAR16);
+            if (next('\'')) return read_char(ENC_CHAR16);
+            // C11 6.4.5: UTF-8 string literal
+            if (next('8')) {
+                if (next('"'))
+                    return read_string(ENC_UTF8);
+                unreadc('8');
+            }
+            return read_ident(c);
+        case '.':
+            if (isdigit(peek()))
+                return read_number(c);
+            if (next('.')) {
+                if (next('.'))
+                    return make_keyword(KELLIPSIS);
+                return make_ident("..");
+            }
+            return make_keyword('.');
+        case '(':
+        case ')':
+        case ',':
+        case ';':
+        case '[':
+        case ']':
+        case '{':
+        case '}':
+        case '?':
+        case '~':
+            return make_keyword(c);
+        case '-':
+            if (next('-')) return make_keyword(OP_DEC);
+            if (next('>')) return make_keyword(OP_ARROW);
+            if (next('=')) return make_keyword(OP_A_SUB);
+            return make_keyword('-');
+        case '<':
+            if (next('<')) return read_rep('=', OP_A_SAL, OP_SAL);
+            if (next('=')) return make_keyword(OP_LE);
+            if (next(':')) return make_keyword('[');
+            if (next('%')) return make_keyword('{');
+            return make_keyword('<');
+        case '>':
+            if (next('=')) return make_keyword(OP_GE);
+            if (next('>')) return read_rep('=', OP_A_SAR, OP_SAR);
+            return make_keyword('>');
+        case '%': {
+            Token *tok = read_hash_digraph();
+            if (tok)
+                return tok;
+            return read_rep('=', OP_A_MOD, '%');
+        }
+        case EOF:
+            return eof_token;
+        default:
+            return make_invalid(c);
     }
 }
 

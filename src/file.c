@@ -22,6 +22,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+
 #include "8cc.h"
 
 static Vector *files = &EMPTY_VECTOR;

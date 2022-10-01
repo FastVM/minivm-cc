@@ -4,6 +4,7 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
+
 #include "8cc.h"
 
 #define INIT_SIZE 8
@@ -86,13 +87,20 @@ char *format(char *fmt, ...) {
 
 static char *quote(char c) {
     switch (c) {
-    case '"': return "\\\"";
-    case '\\': return "\\\\";
-    case '\b': return "\\b";
-    case '\f': return "\\f";
-    case '\n': return "\\n";
-    case '\r': return "\\r";
-    case '\t': return "\\t";
+        case '"':
+            return "\\\"";
+        case '\\':
+            return "\\\\";
+        case '\b':
+            return "\\b";
+        case '\f':
+            return "\\f";
+        case '\n':
+            return "\\n";
+        case '\r':
+            return "\\r";
+        case '\t':
+            return "\\t";
     }
     return NULL;
 }

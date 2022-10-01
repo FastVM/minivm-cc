@@ -11,7 +11,7 @@ struct foo_t {
     foo_t *foo;
 };
 
-int putn(int n) {
+void putn(int n) {
     if (n >= 10) {
         putn(n / 10);
     }
@@ -21,8 +21,9 @@ int putn(int n) {
 int main() {
     foo_t x = {
         'c',
-        x.x,
+        1,
     };
     putn(sizeof(foo_t));
     putchar('\n');
+    return 0;
 }

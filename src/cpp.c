@@ -12,6 +12,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+
 #include "8cc.h"
 
 static Map *macros = &EMPTY_MAP;
@@ -21,12 +22,16 @@ static Map *include_guard = &EMPTY_MAP;
 static Vector *cond_incl_stack = &EMPTY_VECTOR;
 static Vector *std_include_path = &EMPTY_VECTOR;
 static struct tm now;
-static Token *cpp_token_zero = &(Token){ .kind = TNUMBER, .sval = "0" };
-static Token *cpp_token_one = &(Token){ .kind = TNUMBER, .sval = "1" };
+static Token *cpp_token_zero = &(Token){.kind = TNUMBER, .sval = "0"};
+static Token *cpp_token_one = &(Token){.kind = TNUMBER, .sval = "1"};
 
 typedef void SpecialMacroHandler(Token *tok);
-typedef enum { IN_THEN, IN_ELIF, IN_ELSE } CondInclCtx;
-typedef enum { MACRO_OBJ, MACRO_FUNC, MACRO_SPECIAL } MacroType;
+typedef enum { IN_THEN,
+               IN_ELIF,
+               IN_ELSE } CondInclCtx;
+typedef enum { MACRO_OBJ,
+               MACRO_FUNC,
+               MACRO_SPECIAL } MacroType;
 
 typedef struct {
     CondInclCtx ctx;
@@ -68,16 +73,16 @@ static Macro *make_macro(Macro *tmpl) {
 }
 
 static Macro *make_obj_macro(Vector *body) {
-    return make_macro(&(Macro){ MACRO_OBJ, .body = body });
+    return make_macro(&(Macro){MACRO_OBJ, .body = body});
 }
 
 static Macro *make_func_macro(Vector *body, int nargs, bool is_varg) {
     return make_macro(&(Macro){
-            MACRO_FUNC, .nargs = nargs, .body = body, .is_varg = is_varg });
+        MACRO_FUNC, .nargs = nargs, .body = body, .is_varg = is_varg});
 }
 
 static Macro *make_special_macro(SpecialMacroHandler *fn) {
-    return make_macro(&(Macro){ MACRO_SPECIAL, .fn = fn });
+    return make_macro(&(Macro){MACRO_SPECIAL, .fn = fn});
 }
 
 static Token *make_macro_token(int position, bool is_vararg) {
@@ -334,30 +339,30 @@ static Token *read_expand_newline() {
         return tok;
 
     switch (macro->kind) {
-    case MACRO_OBJ: {
-        Set *hideset = set_add(tok->hideset, name);
-        Vector *tokens = subst(macro, NULL, hideset);
-        propagate_space(tokens, tok);
-        unget_all(tokens);
-        return read_expand();
-    }
-    case MACRO_FUNC: {
-        if (!next('('))
-            return tok;
-        Vector *args = read_args(tok, macro);
-        Token *rparen = peek_token();
-        expect(')');
-        Set *hideset = set_add(set_intersection(tok->hideset, rparen->hideset), name);
-        Vector *tokens = subst(macro, args, hideset);
-        propagate_space(tokens, tok);
-        unget_all(tokens);
-        return read_expand();
-    }
-    case MACRO_SPECIAL:
-        macro->fn(tok);
-        return read_expand();
-    default:
-        error("internal error");
+        case MACRO_OBJ: {
+            Set *hideset = set_add(tok->hideset, name);
+            Vector *tokens = subst(macro, NULL, hideset);
+            propagate_space(tokens, tok);
+            unget_all(tokens);
+            return read_expand();
+        }
+        case MACRO_FUNC: {
+            if (!next('('))
+                return tok;
+            Vector *args = read_args(tok, macro);
+            Token *rparen = peek_token();
+            expect(')');
+            Set *hideset = set_add(set_intersection(tok->hideset, rparen->hideset), name);
+            Vector *tokens = subst(macro, args, hideset);
+            propagate_space(tokens, tok);
+            unget_all(tokens);
+            return read_expand();
+        }
+        case MACRO_SPECIAL:
+            macro->fn(tok);
+            return read_expand();
+        default:
+            error("internal error");
     }
 }
 
@@ -707,7 +712,7 @@ static void read_include(Token *hash, File *file, bool isimport) {
     for (int i = 0; i < vec_len(std_include_path); i++)
         if (try_include(vec_get(std_include_path, i), filename, isimport))
             return;
-  err:
+err:
     errort(hash, "cannot find header file: %s", filename);
 }
 
@@ -734,7 +739,7 @@ static void read_include_next(Token *hash, File *file) {
     for (i++; i < vec_len(std_include_path); i++)
         if (try_include(vec_get(std_include_path, i), filename, false))
             return;
-  err:
+err:
     errort(hash, "cannot find header file: %s", filename);
 }
 
@@ -824,25 +829,41 @@ static void read_directive(Token *hash) {
     if (tok->kind != TIDENT)
         goto err;
     char *s = tok->sval;
-    if (!strcmp(s, "define"))            read_define();
-    else if (!strcmp(s, "elif"))         read_elif(hash);
-    else if (!strcmp(s, "else"))         read_else(hash);
-    else if (!strcmp(s, "endif"))        read_endif(hash);
-    else if (!strcmp(s, "error"))        read_error(hash);
-    else if (!strcmp(s, "if"))           read_if();
-    else if (!strcmp(s, "ifdef"))        read_ifdef();
-    else if (!strcmp(s, "ifndef"))       read_ifndef();
-    else if (!strcmp(s, "import"))       read_include(hash, tok->file, true);
-    else if (!strcmp(s, "include"))      read_include(hash, tok->file, false);
-    else if (!strcmp(s, "include_next")) read_include_next(hash, tok->file);
-    else if (!strcmp(s, "line"))         read_line();
-    else if (!strcmp(s, "pragma"))       read_pragma();
-    else if (!strcmp(s, "undef"))        read_undef();
-    else if (!strcmp(s, "warning"))      read_warning(hash);
-    else goto err;
+    if (!strcmp(s, "define"))
+        read_define();
+    else if (!strcmp(s, "elif"))
+        read_elif(hash);
+    else if (!strcmp(s, "else"))
+        read_else(hash);
+    else if (!strcmp(s, "endif"))
+        read_endif(hash);
+    else if (!strcmp(s, "error"))
+        read_error(hash);
+    else if (!strcmp(s, "if"))
+        read_if();
+    else if (!strcmp(s, "ifdef"))
+        read_ifdef();
+    else if (!strcmp(s, "ifndef"))
+        read_ifndef();
+    else if (!strcmp(s, "import"))
+        read_include(hash, tok->file, true);
+    else if (!strcmp(s, "include"))
+        read_include(hash, tok->file, false);
+    else if (!strcmp(s, "include_next"))
+        read_include_next(hash, tok->file);
+    else if (!strcmp(s, "line"))
+        read_line();
+    else if (!strcmp(s, "pragma"))
+        read_pragma();
+    else if (!strcmp(s, "undef"))
+        read_undef();
+    else if (!strcmp(s, "warning"))
+        read_warning(hash);
+    else
+        goto err;
     return;
 
-  err:
+err:
     errort(hash, "unsupported preprocessor directive: %s", tok2s(tok));
 }
 
@@ -931,7 +952,7 @@ static void define_special_macro(char *name, SpecialMacroHandler *fn) {
 }
 
 static void init_keywords() {
-#define op(id, str)         map_put(keywords, str, (void *)id);
+#define op(id, str) map_put(keywords, str, (void *)id);
 #define keyword(id, str, _) map_put(keywords, str, (void *)id);
 #include "keyword.inc"
 #undef keyword
@@ -951,7 +972,7 @@ static void init_predefined_macros() {
     define_special_macro("__TIME__", handle_time_macro);
     define_special_macro("__FILE__", handle_file_macro);
     define_special_macro("__LINE__", handle_line_macro);
-    define_special_macro("_Pragma",  handle_pragma_macro);
+    define_special_macro("_Pragma", handle_pragma_macro);
     // [GNU] Non-standard macros
     define_special_macro("__BASE_FILE__", handle_base_file_macro);
     define_special_macro("__COUNTER__", handle_counter_macro);

@@ -5,10 +5,11 @@
 #include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include "8cc.h"
+
 #include "../vm/vm/asm.h"
-#include "../vm/vm/ir/toir.h"
 #include "../vm/vm/ir/be/int3.h"
+#include "../vm/vm/ir/toir.h"
+#include "8cc.h"
 
 enum {
     OUTPUT_BC,
@@ -35,7 +36,7 @@ static void usage(int exitcode) {
 }
 
 static char *filetype(char *name) {
-    int where = strlen(name)-1;
+    int where = strlen(name) - 1;
     while (where > 0 && name[where] != '.') {
         where -= 1;
     }
@@ -48,45 +49,45 @@ static int parseopt(int argc, char **argv) {
     while (i < argc) {
         char *arg = argv[i++];
         if (arg[0] == '-') {
-            switch(arg[1]) {
-            case 'n': {
-                rtsrc = NULL;
-                break;
-            }
-            case 'r': {
-                rtsrc = argv[i++];
-                break;
-            }
-            case 'j': {
-                arg += 2;
-                if (!strcmp(arg, "on")) {
-                    outtype = OUTPUT_JIT;
-                } else {
-                    fprintf(stderr, "unknown jit option: -j%s\n", arg);
-                    usage(1);
+            switch (arg[1]) {
+                case 'n': {
+                    rtsrc = NULL;
+                    break;
                 }
-                break;
-            }
-            case 'o': {
-                outfile = argv[i++];
-                char *ext = filetype(outfile);   
-                if (!strcmp(ext, ".vasm")) {
-                    outtype = OUTPUT_ASM;
-                } else if (!strcmp(ext, ".bc")) {
-                    outtype = OUTPUT_BC;
-                } else {
-                    fprintf(stderr, "unknown file extension: %s\n", ext);
-                    usage(1);
+                case 'r': {
+                    rtsrc = argv[i++];
+                    break;
                 }
-                break;
-            }
-            case 'h':
-                printf("%s\n", arg);
-                usage(0);
-                break;
-            default:
-                printf("%s\n", arg);
-                usage(1);
+                case 'j': {
+                    arg += 2;
+                    if (!strcmp(arg, "on")) {
+                        outtype = OUTPUT_JIT;
+                    } else {
+                        fprintf(stderr, "unknown jit option: -j%s\n", arg);
+                        usage(1);
+                    }
+                    break;
+                }
+                case 'o': {
+                    outfile = argv[i++];
+                    char *ext = filetype(outfile);
+                    if (!strcmp(ext, ".vasm")) {
+                        outtype = OUTPUT_ASM;
+                    } else if (!strcmp(ext, ".bc")) {
+                        outtype = OUTPUT_BC;
+                    } else {
+                        fprintf(stderr, "unknown file extension: %s\n", ext);
+                        usage(1);
+                    }
+                    break;
+                }
+                case 'h':
+                    printf("%s\n", arg);
+                    usage(0);
+                    break;
+                default:
+                    printf("%s\n", arg);
+                    usage(1);
             }
         } else {
             vec_push(infiles, arg);
@@ -94,7 +95,6 @@ static int parseopt(int argc, char **argv) {
     }
     return 0;
 }
-
 
 char *infile;
 char *get_base_file(void) {

@@ -1,6 +1,6 @@
-#include <stdlib.h>
-#include <stdio.h>
 #include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #define BLOCKSIZE 0xF
 
@@ -11,7 +11,7 @@ int main() {
         if (malloc(BLOCKSIZE) == NULL) {
             break;
         }
-        n+=1;
+        n += 1;
     }
     putn(n);
     putchar('\n');

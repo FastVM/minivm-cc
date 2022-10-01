@@ -6,6 +6,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+
 #include "8cc.h"
 
 #define MIN_SIZE 8

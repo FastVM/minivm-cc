@@ -13,3 +13,14 @@ void putn(int n) {
     }
     putchar(n % 10 + '0');
 }
+
+void puts(const char *str) {
+    while (1) {
+        char chr = *str;
+        if (chr == '\0') {
+            break;
+        }
+        putchar(chr);
+        str += 1;
+    }
+}

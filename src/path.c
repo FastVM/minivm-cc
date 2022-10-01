@@ -4,6 +4,7 @@
 #include <limits.h>
 #include <string.h>
 #include <unistd.h>
+
 #include "8cc.h"
 
 // Returns the shortest path for the given full path to a file.
@@ -25,7 +26,8 @@ static char *clean(char *p) {
             p += 3;
             if (q == buf + 1)
                 continue;
-            for (q--; q[-1] != '/'; q--);
+            for (q--; q[-1] != '/'; q--)
+                ;
             continue;
         }
         while (*p != '/' && *p != '\0')

@@ -4,8 +4,7 @@
 
 int main() {
     int *x = malloc(sizeof(int) * 256);
-    for (int i = 0; i < 256; i++)
-    {
+    for (int i = 0; i < 256; i++) {
         x[i] = i;
     }
     putchar(&x['t']);

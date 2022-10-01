@@ -4,16 +4,16 @@
 #define EIGHTCC_H
 
 #include <assert.h>
+#include <ctype.h>
 #include <inttypes.h>
 #include <stdarg.h>
 #include <stdbool.h>
-#include <string.h>
-#include <stdio.h>
 #include <stddef.h>
-#include <stdnoreturn.h>
-#include <time.h>
-#include <ctype.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <stdnoreturn.h>
+#include <string.h>
+#include <time.h>
 
 enum {
     TIDENT,
@@ -75,11 +75,11 @@ typedef struct {
     char *name;
     int line;
     int column;
-    int ntok;     // token counter
-    int last;     // the last character read from file
-    int buf[3];   // push-back buffer for unread operations
-    int buflen;   // push-back buffer size
-    time_t mtime; // last modified time. 0 if string-backed file
+    int ntok;      // token counter
+    int last;      // the last character read from file
+    int buf[3];    // push-back buffer for unread operations
+    int buflen;    // push-back buffer size
+    time_t mtime;  // last modified time. 0 if string-backed file
 } File;
 
 typedef struct {
@@ -87,10 +87,10 @@ typedef struct {
     File *file;
     int line;
     int column;
-    bool space;   // true if the token has a leading space
-    bool bol;     // true if the token is at the beginning of a line
-    int count;    // token number in a file, counting from 0.
-    Set *hideset; // used by the preprocessor for macro expansion
+    bool space;    // true if the token has a leading space
+    bool bol;      // true if the token is at the beginning of a line
+    int count;     // token number in a file, counting from 0.
+    Set *hideset;  // used by the preprocessor for macro expansion
     union {
         // TKEYWORD
         int id;
@@ -171,7 +171,7 @@ typedef struct Type {
     int kind;
     int size;
     int align;
-    bool usig; // true if unsigned
+    bool usig;  // true if unsigned
     bool isstatic;
     void *initnode;
     // pointer or array
@@ -181,7 +181,7 @@ typedef struct Type {
     // struct
     Dict *fields;
     int offset;
-    bool is_struct; // true if struct, false if union
+    bool is_struct;  // true if struct, false if union
     // bitfield
     int bitoff;
     int bitsize;
@@ -345,10 +345,10 @@ extern bool warning_is_error;
 
 #define STR2(x) #x
 #define STR(x) STR2(x)
-#define error(...)       errorf(__FILE__ ":" STR(__LINE__), NULL, __VA_ARGS__)
+#define error(...) errorf(__FILE__ ":" STR(__LINE__), NULL, __VA_ARGS__)
 #define errort(tok, ...) errorf(__FILE__ ":" STR(__LINE__), token_pos(tok), __VA_ARGS__)
-#define warn(...)        warnf(__FILE__ ":" STR(__LINE__), NULL, __VA_ARGS__)
-#define warnt(tok, ...)  warnf(__FILE__ ":" STR(__LINE__), token_pos(tok), __VA_ARGS__)
+#define warn(...) warnf(__FILE__ ":" STR(__LINE__), NULL, __VA_ARGS__)
+#define warnt(tok, ...) warnf(__FILE__ ":" STR(__LINE__), token_pos(tok), __VA_ARGS__)
 
 noreturn void errorf(char *line, char *pos, char *fmt, ...);
 void warnf(char *line, char *pos, char *fmt, ...);

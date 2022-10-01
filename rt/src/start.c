@@ -1,6 +1,6 @@
 
 #if !defined(NULL)
-#define NULL ({(void*)0;})
+#define NULL ({ (void *)0; })
 #endif
 
 int main(int argc, char **argv);
