@@ -3,16 +3,12 @@
 
 #define true 1
 #define false 0
-#define size (100000)
+#define size (100)
 
 int main(int argc, char **argv) {
-#if !defined(__MINIVM__)
     char flags[size];
-#else
-    char *flags = (char *) (1 << 16);
-#endif
     int i, prime, k, count, iter;
-    for (iter = 1; iter <= 100; iter++) {
+    for (iter = 1; iter <= 10; iter++) {
         count = 0;
         for (i = 0; i <= size; i++) {
             flags[i] = true;

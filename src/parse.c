@@ -2820,6 +2820,7 @@ void parse_init() {
     Vector *two_voidptrs = make_vector();
     vec_push(two_voidptrs, make_ptr_type(type_void));
     vec_push(two_voidptrs, make_ptr_type(type_void));
+    // define_builtin("__builtin_trap", make_ptr_type(type_void), voidptr);
     define_builtin("__builtin_return_address", make_ptr_type(type_void), voidptr);
     define_builtin("__builtin_reg_class", type_int, voidptr);
     define_builtin("__builtin_va_arg", type_void, two_voidptrs);

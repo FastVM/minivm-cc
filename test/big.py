@@ -1,0 +1,12 @@
+print("#include <stdio.h>")
+print("int main() {")
+print("    int x = 0, y = 0;")
+for i in range(100_000):
+    print("    y += ++x;")
+print("#if defined(__MINIVM__)")
+print("    putn(y);")
+print("    putchar(10);")
+print("#else")
+print("   printf(\"%i\\n\", y);")
+print("#endif")
+print("}")

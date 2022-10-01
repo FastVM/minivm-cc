@@ -107,7 +107,6 @@ int main(int argc, char **argv) {
     parseopt(argc, argv);
     Vector *asmbufs = &EMPTY_VECTOR;
     if (rtsrc != NULL) {
-        vec_push(infiles, format("%s/src/mem.vasm", rtsrc));
         vec_push(infiles, format("%s/src/stdio.c", rtsrc));
         vec_push(infiles, format("%s/src/bitop.c", rtsrc));
         vec_push(infiles, format("%s/src/start.c", rtsrc));

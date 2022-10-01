@@ -7,7 +7,7 @@ REAL_OPT=$(OPT)
 
 default: all
 
-all: bin/minivm-cc bin/minivm-asm
+all: bin/minivm-cc
 
 bin/minivm-cc: src/8cc.h main.o $(8OBJS) vm/bin/libminivm.a
 	@mkdir -p bin

@@ -12,6 +12,8 @@
 #include <stddef.h>
 #include <stdnoreturn.h>
 #include <time.h>
+#include <ctype.h>
+#include <stdlib.h>
 
 enum {
     TIDENT,

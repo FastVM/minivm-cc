@@ -4,8 +4,10 @@
 #include <stddef.h>
 
 int main() {
-    int *x = malloc(sizeof(int) * 0x230);
-    putn((size_t) x);
+    int x = 4984;
+    int *px = &x;
+    int y = 1 + *px;
+    putn(y);
     putchar('\n');
     return 0;
 }

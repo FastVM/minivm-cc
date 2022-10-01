@@ -17,7 +17,7 @@ void putn(int n) {
 }
 
 int main() {
-    putn(fib(35));
+    putn(fib(25));
     putchar('\n');
     return 0;
 }

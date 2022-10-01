@@ -5,6 +5,6 @@
 
 int main(int argc, char **argv);
 
-void _start() {
-    main(0, NULL);
+int _start() {
+    return main(0, NULL);
 }
