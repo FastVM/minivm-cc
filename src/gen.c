@@ -9,6 +9,8 @@
 
 #include "8cc.h"
 
+#define BUFFER_EXTRA 100
+
 bool dumpsource = true;
 
 static int nregs;
@@ -17,6 +19,7 @@ static const char *curfunc;
 static Map globals = EMPTY_MAP;
 static Map locals;
 static Type *rettype;
+static Vector globalzero = EMPTY_VECTOR;
 static Vector globalinit = EMPTY_VECTOR;
 static Vector globalinitval = EMPTY_VECTOR;
 static int initmem = 16;
@@ -56,11 +59,10 @@ static int emit_pre_call(void) {
     int reg = nregs++;
     emit("r0 <- int 1");
     emit("r%i <- get r1 r0", reg);
-    int tmp = nregs++;
-    emit("r0 <- int %i", stackn);
-    emit("r%i <- add r0 r%i", tmp, reg);
+    emit("r0 <- int %i", stackn + BUFFER_EXTRA);
+    emit("r%i <- add r%i r0", reg, reg);
     emit("r0 <- int 1");
-    emit("set r1 r0 r%i", tmp);
+    emit("set r1 r0 r%i", reg);
     return reg;
 }
 
@@ -115,13 +117,9 @@ static int emit_assign_to(Node *from, Node *to) {
         int lhs = emit_expr(to->operand);
         // lhs += offset;
         for (int i = 0; i < from->ty->size; i++) {
-            if (i == 0) {
-                emit("set r1 r%i r%i", lhs, rhs + i);
-            } else {
-                emit("r0 <- int %i", (i + offset));
-                emit("r0 <- add r0 r%i", lhs);
-                emit("set r1 r0 r%i", rhs + i);
-            }
+            emit("r0 <- int %i", (i + offset));
+            emit("r0 <- add r0 r%i", lhs);
+            emit("set r1 r0 r%i", rhs + i);
         }
     } else if (to->kind == AST_LVAR) {
         int out = (int)(size_t)map_get(&locals, to->varname);
@@ -145,28 +143,6 @@ static int emit_assign_to(Node *from, Node *to) {
 
 static int emit_assign(Node *node) {
     return emit_assign_to(node->right, node->left);
-}
-
-static int emit_library_binop(const char *func, int lhs, int rhs) {
-    int ref = nregs++;
-    emit("r0 <- int 1");
-    emit("r%i <- get r1 r0", tmp);
-    emit("r0 <- int %i", stackn);
-    emit("r%i <- add r%i r0", tmp, tmp);
-    Node *v = vec_get(vals, i);
-    int regno = emit_expr(v);
-    emit("set r1 r%i r%i", tmp, lhs);
-    emit("r0 <- int 1");
-    emit("r%i <- add r%i r0", tmp, tmp);
-    emit("set r1 r%i r%i", tmp, rhs);
-    int tmp = emit_pre_call();
-    emit("r%i <- call func.%s r1", ref, func);
-    emit_post_call(tmp);
-    int ret = nregs++;
-    emit("r0 <- int %i", i);
-    emit("r0 <- add r0 r%i", ref);
-    emit("r%i <- get r1 r0", ret + i);
-    return ret;
 }
 
 static int emit_binop(Node *node) {
@@ -209,10 +185,18 @@ static int emit_binop(Node *node) {
         }
     }
     if (node->kind == OP_IPADD) {
+        if (node->left->ty->size != 1) {
+            error("postfix `++` or `--` on type too big");
+        }
         int addr = emit_addr(node->left);
         int add = emit_expr(node->right);
         int ret = nregs++;
         emit("r%i <- get r1 r%i", ret, addr);
+        // if (node->left->ty->kind == KIND_PTR && node->left->ty->ptr->size != 1) {
+        if (node->left->ty->kind == KIND_PTR) {
+            emit("r0 <- int %i", node->left->ty->ptr->size);
+            emit("r%i <- mul r%i r0", add, add);
+        }
         emit("r0 <- add r%i r%i", ret, add);
         emit("set r1 r%i r0", addr);
         return ret;
@@ -427,17 +411,19 @@ static int emit_literal(Node *node) {
 }
 
 static void emit_args(Vector *vals) {
+    int buf[16] = {0};
+    for (int i = 0; i < vec_len(vals); i++) {
+        buf[i] = emit_expr(vec_get(vals, i));
+    }
     int tmp = nregs++;
     emit("r0 <- int 1");
     emit("r%i <- get r1 r0", tmp);
-    emit("r0 <- int %i", stackn);
-    emit("r%i <- add r%i r0", tmp, tmp);
     int off = 0;
     for (int i = 0; i < vec_len(vals); i++) {
         Node *v = vec_get(vals, i);
-        int regno = emit_expr(v);
+        int regno = buf[i];
         for (int j = 0; j < v->ty->size; j++) {
-            emit("r0 <- int %i", off);
+            emit("r0 <- int %i", off + stackn + BUFFER_EXTRA);
             emit("r0 <- add r0 r%i", tmp);
             emit("set r1 r0 r%i", regno+j);
             off += 1;
@@ -446,15 +432,14 @@ static void emit_args(Vector *vals) {
 }
 
 static int emit_funcptr_call(Node *node) {
-    emit_args(node->args);
     int func = emit_expr(node->fptr);
     int ref = nregs++;
+    emit_args(node->args);
     int tmp = emit_pre_call();
     emit("r%i <- dcall r%i r1", ref, func);
     emit_post_call(tmp);
     int ret = nregs++;
-    if (node->fptr->ty->ptr->rettype->kind == KVOID) {
-    } else {
+    if (node->fptr->ty->ptr->rettype->kind != KVOID) {
         for (int i = 0; i < node->fptr->ty->ptr->rettype->size; i++) {
             emit("r0 <- int %i", i);
             emit("r0 <- add r0 r%i", ref);
@@ -465,20 +450,24 @@ static int emit_funcptr_call(Node *node) {
 }
 
 static int emit_func_call(Node *node) {
-    if (!strcmp(node->fname, "putchar")) {
+    if (!strcmp(node->fname, "getchar")) {
+        int reg = nregs++;
+        emit("r%i <- getchar", reg);
+        return reg;
+    } else if (!strcmp(node->fname, "putchar")) {
         Node *v = vec_get(node->args, 0);
         int regno = emit_expr(v);
         emit("putchar r%i", regno);
         return 0;
     } else {
-        int ref = nregs++;
+        int ref = nregs;
+        nregs += node->ftype->rettype->size;
         emit_args(node->args);
         int tmp = emit_pre_call();
         emit("r%i <- call func.%s r1", ref, node->fname);
         emit_post_call(tmp);
         int ret = nregs++;
-        if (node->ftype->rettype->kind == KVOID) {
-        } else {
+        if (node->ftype->rettype->kind != KVOID) {
             for (int i = 0; i < node->ftype->rettype->size; i++) {
                 emit("r0 <- int %i", i);
                 emit("r0 <- add r0 r%i", ref);
@@ -542,7 +531,7 @@ static int emit_return(Node *node) {
         int dest = nregs++;
         emit("r0 <- int 1");
         emit("r%i <- get r1 r0", dest);
-        emit("r0 <- int %i", stackn);
+        emit("r0 <- int %i", stackn + BUFFER_EXTRA);
         emit("r%i <- add r%i r0", dest, dest);
         int regno = emit_expr(node->retval);
         for (int i = 0; i < node->retval->ty->size; i++) {
@@ -640,7 +629,7 @@ static int emit_addr(Node *op) {
 }
 
 static int emit_conv(Node *node) {
-    if (node->operand->ty->kind == KIND_ARRAY && (node->operand->kind == AST_LVAR || node->operand->kind == AST_GVAR)) {
+    if (node->operand->ty->kind == KIND_ARRAY && node->ty->kind == KIND_PTR && (node->operand->kind == AST_LVAR || node->operand->kind == AST_GVAR)) {
         return emit_addr(node->operand);
     } else {
         int reg1 = emit_expr(node->operand);
@@ -801,6 +790,12 @@ static void emit_func_prologue(Node *func) {
         emit("jump __entry_memory");
         emit_noindent("@__entry_init");
         nregs = 5;
+        for (int i = 0; i < vec_len(&globalzero); i++) {
+            int *pair = vec_get(&globalzero, i);
+            emit("r0 <- int %i", pair[0]);
+            emit("r2 <- int 0");
+            emit("set r1 r0 r2");
+        }
         for (int i = 0; i < vec_len(&globalinitval); i++) {
             union {int i; Node *n;} *pair = vec_get(&globalinitval, i);
             // printf("%s : %s\n", node2s(pair[1].n), node2s(pair[2].n));
@@ -834,12 +829,12 @@ static void emit_func_prologue(Node *func) {
     } else {
         stackn = 0;
         emit_noindent("func func.%s", func->fname, nregs);
-        // for (int i = 0; func->fname[i] != '\0'; i++) {
-        //     emit("r0 <- int %i", (int) func->fname[i]);
-        //     emit("putchar r0");
-        // }
-        // emit("r0 <- int 10");
-        // emit("putchar r0");
+        for (int i = 0; func->fname[i] != '\0'; i++) {
+            emit("r0 <- int %i", (int) func->fname[i]);
+            emit("putchar r0");
+        }
+        emit("r0 <- int 10");
+        emit("putchar r0");
         rettype = func->ty->rettype;
         locals = EMPTY_MAP;
         nregs = 2;
@@ -870,10 +865,9 @@ void emit_toplevel(Node *v) {
         int base = initmem;
         map_put(&globals, v->declvar->varname, (void *)(size_t)base);
         for (int i = 0; i < v->declvar->ty->size; i++) {
-            int *pair = malloc(sizeof(int) * 2);
+            int *pair = malloc(sizeof(int) * 1);
             pair[0] = base + i;
-            pair[1]= 0;
-            vec_push(&globalinit, pair);
+            vec_push(&globalzero, pair);
         }
         initmem += v->declvar->ty->size;
         if (v->declinit) {

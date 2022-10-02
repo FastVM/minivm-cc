@@ -19,28 +19,24 @@
 * dependencies as low as possible. In this file, the only C standard functions
 * used are getchar, putchar and the EOF value. */
 #include <stdio.h>
+#include <stddef.h>
 
 /* Base cell data types. Use short/long on most systems for 16 bit cells. */
 /* Experiment here if necessary. */
-#define CELL_BASE_TYPE int
-#define DOUBLE_CELL_BASE_TYPE int
 
 /* Basic memory configuration */
 #define MEM_SIZE 65536 /* main memory size in bytes */
 #define STACK_SIZE 192 /* cells reserved for the stack */
 #define RSTACK_SIZE 64 /* cells reserved for the return stack */
-#define INPUT_LINE_SIZE 32 /* bytes reserved for the WORD buffer */
+#define INPUT_LINE_SIZE 80 /* bytes reserved for the WORD buffer */
 
 /******************************************************************************/
 
 /* Our basic data types */
-typedef CELL_BASE_TYPE scell;
-typedef DOUBLE_CELL_BASE_TYPE dscell;
-typedef unsigned CELL_BASE_TYPE cell;
-typedef unsigned DOUBLE_CELL_BASE_TYPE dcell;
+typedef ptrdiff_t scell;
+typedef size_t cell;
 typedef unsigned char byte;
 #define CELL_SIZE sizeof(cell)
-#define DCELL_SIZE sizeof(dcell)
 
 /* A few constants that describe the memory layout of this implementation */
 #define LATEST_POSITION INPUT_LINE_SIZE
@@ -88,16 +84,16 @@ int positionInLineBuffer = 0;
 /* A basic setup for defining builtins. This Forth uses impossibly low
 * adresses as IDs for the builtins so we can define builtins as
 * standard C functions. Slower but easier to port. */
-#define BUILTIN(id, name, c_name, flags) const int c_name##_id=id; const char c_name##_name[]=name; const byte c_name##_flags=flags; void c_name()
+#define BUILTIN(id, name, c_name, flags) const int c_name##_id=id; const char *c_name##_name=name; const byte c_name##_flags=flags; void c_name(void)
 #define ADD_BUILTIN(c_name) addBuiltin(c_name##_id, c_name##_name, c_name##_flags, c_name)
-typedef void(*builtin)();
-builtin builtins[MAX_BUILTIN_ID] = { 0 };
+typedef void(*builtin)(void);
+builtin builtins[MAX_BUILTIN_ID];
 
 /* This is our initialization script containing all the words we define in
 * Forth for convenience. Focus is on simplicity, not speed. Partly copied from
 * Jonesforth (see top of file). */
-char *initscript_pos;
-const char initScript[] =
+const char *initscript_pos;
+const char *initScript =
     ": DECIMAL 10 BASE ! ;\n"
     ": HEX 16 BASE ! ;\n"
     ": OCTAL 8 BASE ! ;\n"
@@ -191,21 +187,21 @@ void putkey(char c)
 
 /* The primary data input function. This is where you place the code to e.g.
 * read from a serial line. */
-int llkey()
+int llkey(void)
 {
-    if (*initscript_pos) return *(initscript_pos++);
+    if (initscript_pos && *initscript_pos) return *(initscript_pos++);
     return getchar();
 }
 
 /* Anything waiting in the keyboard buffer? */
-int keyWaiting()
+int keyWaiting(void)
 {
     return positionInLineBuffer < charsInLineBuffer ? -1 : 0;
 }
 
 /* Line buffered character input. We're duplicating the functionality of the
 * stdio library here to make the code easier to port to other input sources */
-int getkey()
+int getkey(void)
 {
     int c;
 
@@ -266,20 +262,14 @@ void push(cell data)
     stack[(*sp)++] = data;
 }
 
-dcell dpop()
+cell dpop()
 {
-    cell tmp[2];
-    tmp[1] = pop();
-    tmp[0] = pop();
-    return *((dcell*)tmp);
+    return pop();
 }
 
-void dpush(dcell data)
+void dpush(cell data)
 {
-    cell tmp[2];
-    *((dcell*)tmp) = data;
-    push(tmp[0]);
-    push(tmp[1]);
+    push(data);
 }
 
 /* The basic return stack operations */
@@ -393,7 +383,7 @@ cell findWord(cell address, cell len)
 }
 
 /* Basic number parsing, base <= 36 only atm */
-void parseNumber(byte *word, cell len, dcell *number, cell *notRead, byte *isDouble)
+void parseNumber(byte *word, cell len, cell *number, cell *notRead, byte *isDouble)
 {
     int negative = 0;
     cell i;
@@ -558,7 +548,7 @@ BUILTIN(35, ">CFA", cfa, 0)
 
 BUILTIN(36, "NUMBER", number, 0)
 {
-    dcell num;
+    cell num;
     cell notRead;
     byte isDouble;
     cell len = pop();
@@ -578,12 +568,12 @@ BUILTIN(37, "LIT", lit, 0)
 BUILTIN(38, "QUIT", quit, 0)
 {
     cell address;
-    dcell number;
+    cell number;
     cell notRead;
     cell command;
     int i;
     byte isDouble;
-    cell tmp[2];
+    cell tmp;
 
     int immediate;
 
@@ -644,21 +634,21 @@ BUILTIN(38, "QUIT", quit, 0)
             {
                 if (*state)
                 {
-                    *((dcell*)tmp) = number;
-                    push(lit_id);
-                    comma();
-
                     if (isDouble)
                     {
-                        push(tmp[0]);
-                        comma();
                         push(lit_id);
                         comma();
-                        push(tmp[1]);
+                        push(number);
                         comma();
+                        // push(lit_id);
+                        // comma();
+                        // push(tmp[1]);
+                        // comma();
                     }
                     else
                     {
+                        push(lit_id);
+                        comma();
                         push((cell)number);
                         comma();
                     }
@@ -838,9 +828,9 @@ BUILTIN(57, "XOR", xor, 0)
 BUILTIN(58, "*/", timesDivide, 0)
 {
     cell n3 = pop();
-    dcell n2 = pop();
-    dcell n1 = pop();
-    dcell r = (n1 * n2) / n3;
+    cell n2 = pop();
+    cell n1 = pop();
+    cell r = (n1 * n2) / n3;
     push((cell)r);
     if ((cell)r != r)
     {
@@ -852,10 +842,10 @@ BUILTIN(58, "*/", timesDivide, 0)
 BUILTIN(59, "*/MOD", timesDivideMod, 0)
 {
     cell n3 = pop();
-    dcell n2 = pop();
-    dcell n1 = pop();
-    dcell r = (n1 * n2) / n3;
-    dcell m = (n1 * n2) % n3;
+    cell n2 = pop();
+    cell n1 = pop();
+    cell r = (n1 * n2) / n3;
+    cell m = (n1 * n2) % n3;
     push((cell)m);
     push((cell)r);
     if ((cell)r != r)
@@ -867,72 +857,72 @@ BUILTIN(59, "*/MOD", timesDivideMod, 0)
 
 BUILTIN(60, "D=", dequals, 0)
 {
-    dcell a1 = dpop();
-    dcell a2 = dpop();
+    cell a1 = dpop();
+    cell a2 = dpop();
     push(a2 == a1 ? -1 : 0);
 }
 
 BUILTIN(61, "D<", dsmaller, 0)
 {
-    dscell a1 = dpop();
-    dscell a2 = dpop();
+    scell a1 = dpop();
+    scell a2 = dpop();
     push(a2 < a1 ? -1 : 0);
 }
 
 BUILTIN(62, "D>", dlarger, 0)
 {
-    dscell a1 = dpop();
-    dscell a2 = dpop();
+    scell a1 = dpop();
+    scell a2 = dpop();
     push(a2 > a1 ? -1 : 0);
 }
 
 BUILTIN(63, "DU<", dusmaller, 0)
 {
-    dcell a1 = dpop();
-    dcell a2 = dpop();
+    cell a1 = dpop();
+    cell a2 = dpop();
     push(a2 < a1 ? -1 : 0);
 }
 
 BUILTIN(64, "D+", dplus, 0)
 {
-    dscell n1 = dpop();
-    dscell n2 = dpop();
+    scell n1 = dpop();
+    scell n2 = dpop();
     dpush(n1 + n2);
 }
 
 BUILTIN(65, "D-", dminus, 0)
 {
-    dscell n1 = dpop();
-    dscell n2 = dpop();
+    scell n1 = dpop();
+    scell n2 = dpop();
     dpush(n2 - n1);
 }
 
 BUILTIN(66, "D*", dmul, 0)
 {
-    dscell n1 = dpop();
-    dscell n2 = dpop();
+    scell n1 = dpop();
+    scell n2 = dpop();
     dpush(n1 * n2);
 }
 
 BUILTIN(67, "D/", ddiv, 0)
 {
-    dscell n1 = dpop();
-    dscell n2 = dpop();
+    scell n1 = dpop();
+    scell n2 = dpop();
     dpush(n2 / n1);
 }
 
 BUILTIN(68, "2SWAP", dswap, 0)
 {
-    dcell a = dpop();
-    dcell b = dpop();
+    cell a = dpop();
+    cell b = dpop();
     dpush(a);
     dpush(b);
 }
 
 BUILTIN(69, "2OVER", dover, 0)
 {
-    dcell a = dpop();
-    dcell b = dpop();
+    cell a = dpop();
+    cell b = dpop();
     dpush(b);
     dpush(a);
     dpush(b);
@@ -940,9 +930,9 @@ BUILTIN(69, "2OVER", dover, 0)
 
 BUILTIN(70, "2ROT", drot, 0)
 {
-    dcell a = dpop();
-    dcell b = dpop();
-    dcell c = dpop();
+    cell a = dpop();
+    cell b = dpop();
+    cell c = dpop();
     dpush(b);
     dpush(a);
     dpush(c);
@@ -987,7 +977,6 @@ byte slen(const char *str)
 /* Add a builtin to the dictionary */
 void addBuiltin(cell code, const char* name, const byte flags, builtin f)
 {
-    puts(name);
     if (errorFlag) return;
 
     if (code >= MAX_BUILTIN_ID)
@@ -995,15 +984,6 @@ void addBuiltin(cell code, const char* name, const byte flags, builtin f)
         tell("Error adding builtin ");
         tell(name);
         tell(": Out of builtin IDs\n");
-        errorFlag = 1;
-        return;
-    }
-
-    if (builtins[code] != 0)
-    {
-        tell("Error adding builtin ");
-        tell(name);
-        tell(": ID given twice\n");
         errorFlag = 1;
         return;
     }
@@ -1020,12 +1000,6 @@ void addBuiltin(cell code, const char* name, const byte flags, builtin f)
 int main()
 {
     errorFlag = 0;
-
-    // if (DCELL_SIZE != 2*CELL_SIZE)
-    // {
-    //     tell("Configuration error: DCELL_SIZE != 2*CELL_SIZE\n");
-    //     return 1;
-    // }
 
     state = (cell*)&memory[STATE_POSITION];
     base = (cell*)&memory[BASE_POSITION];

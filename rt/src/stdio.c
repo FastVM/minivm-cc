@@ -3,16 +3,6 @@
 
 int putchar(int c);
 
-char buf[] = "";
-
-int getchar(void) {
-    if (*buf == '\0') {
-        return EOF;
-    } else {
-        return *buf++;
-    }
-}
-
 void putn(int n) {
     if (n >= 10) {
         putn(n / 10);
