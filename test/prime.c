@@ -3,10 +3,10 @@
 
 #define true 1
 #define false 0
-#define size (100)
+#define size (8190)
 
 int main(int argc, char **argv) {
-    char flags[size];
+    char flags[size + 1];
     int i, prime, k, count, iter;
     for (iter = 1; iter <= 10; iter++) {
         count = 0;
@@ -29,4 +29,5 @@ int main(int argc, char **argv) {
     putn(count);
     putchar('\n');
 #endif
+    return 0;
 }

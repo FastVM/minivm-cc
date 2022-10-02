@@ -3,8 +3,14 @@
 
 int putchar(int c);
 
+char buf[] = "";
+
 int getchar(void) {
-    return EOF;
+    if (*buf == '\0') {
+        return EOF;
+    } else {
+        return *buf++;
+    }
 }
 
 void putn(int n) {

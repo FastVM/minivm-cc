@@ -307,6 +307,9 @@ static void do_node2s(Buffer *b, Node *node) {
         case OP_LABEL_ADDR:
             buf_printf(b, "&&%s", node->label);
             break;
+        case OP_IPADD:
+            buf_printf(b, "(post %s + %s)", node2s(node->left), node2s(node->right));
+            break;
         default: {
             char *left = node2s(node->left);
             char *right = node2s(node->right);

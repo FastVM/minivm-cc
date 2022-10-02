@@ -139,6 +139,7 @@ enum {
     OP_A_SHR,
     OP_A_SHL,
     OP_LABEL_ADDR,
+    OP_IPADD,
 #define op(name, _) name,
 #define keyword(name, x, y) name,
 #include "keyword.inc"

@@ -2,6 +2,7 @@
 
 int main() {
     char x[16] = {4984};
-    putn((int)x);
+    putn(x[0]);
     putchar('\n');
+    return 1;
 }

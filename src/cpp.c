@@ -6,7 +6,6 @@
  */
 
 #include <ctype.h>
-#include <libgen.h>
 #include <locale.h>
 #include <stdlib.h>
 #include <string.h>
@@ -892,13 +891,13 @@ static void handle_time_macro(Token *tmpl) {
     make_token_pushback(tmpl, TSTRING, strdup(buf));
 }
 
-static void handle_timestamp_macro(Token *tmpl) {
-    // [GNU] __TIMESTAMP__ is expanded to a string that describes the date
-    // and time of the last modification time of the current source file.
-    char buf[30];
-    strftime(buf, sizeof(buf), "%a %b %e %T %Y", localtime(&tmpl->file->mtime));
-    make_token_pushback(tmpl, TSTRING, strdup(buf));
-}
+// static void handle_timestamp_macro(Token *tmpl) {
+//     // [GNU] __TIMESTAMP__ is expanded to a string that describes the date
+//     // and time of the last modification time of the current source file.
+//     char buf[30];
+//     strftime(buf, sizeof(buf), "%a %b %e %T %Y", localtime(&tmpl->file->mtime));
+//     make_token_pushback(tmpl, TSTRING, strdup(buf));
+// }
 
 static void handle_file_macro(Token *tmpl) {
     make_token_pushback(tmpl, TSTRING, tmpl->file->name);
@@ -977,7 +976,7 @@ static void init_predefined_macros() {
     define_special_macro("__BASE_FILE__", handle_base_file_macro);
     define_special_macro("__COUNTER__", handle_counter_macro);
     define_special_macro("__INCLUDE_LEVEL__", handle_include_level_macro);
-    define_special_macro("__TIMESTAMP__", handle_timestamp_macro);
+    // define_special_macro("__TIMESTAMP__", handle_timestamp_macro);
 }
 
 void init_now() {

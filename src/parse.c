@@ -1147,9 +1147,7 @@ static Node *read_postfix_expr_tail(Node *node) {
         if (next_token(OP_INC) || next_token(OP_DEC)) {
             ensure_lvalue(node);
             int off = is_keyword(tok, OP_INC) ? 1 : -1;
-            Node *tostore = ast_binop(node->ty, '+', node, ast_inttype(type_int, off));
-            Node *store = ast_binop(node->ty, '=', node, tostore);
-            return ast_binop(node->ty, '-', store, ast_inttype(type_int, off));
+            return ast_binop(node->ty, OP_IPADD, node, ast_inttype(type_int, off));
         }
         return node;
     }
@@ -1166,7 +1164,8 @@ static Node *read_unary_incdec(int n) {
     ensure_lvalue(node);
     Node *tostore = ast_binop(node->ty, '+', node, ast_inttype(node->ty, n));
     Node *store = ast_binop(node->ty, '=', node, tostore);
-    return ast_binop(node->ty, '-', store, ast_inttype(node->ty, n));
+    // return ast_binop(node->ty, '-', store, ast_inttype(node->ty, n));
+    return store;
 }
 
 static Node *read_label_addr(Token *tok) {

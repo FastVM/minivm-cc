@@ -23,6 +23,7 @@ static int initmem = 16;
 int stackn = 0;
 
 static int emit_expr(Node *node);
+static int emit_addr(Node *op);
 
 #define newline() buf_printf(outbuf, "\n")
 #define emit_noindent(...) (buf_printf(outbuf, __VA_ARGS__), newline())
@@ -56,7 +57,7 @@ static int emit_pre_call(void) {
     emit("r0 <- int 1");
     emit("r%i <- get r1 r0", reg);
     int tmp = nregs++;
-    emit("r0 <- int %i", stackn + 16);
+    emit("r0 <- int %i", stackn);
     emit("r%i <- add r0 r%i", tmp, reg);
     emit("r0 <- int 1");
     emit("set r1 r0 r%i", tmp);
@@ -106,6 +107,9 @@ static int emit_assign_to(Node *from, Node *to) {
         offset += field->offset;
         to = to->struc;
     }
+    while (to->kind == AST_CONV) {
+        to = to->operand;
+    }
     int rhs = emit_expr(from);
     if (to->kind == AST_DEREF) {
         int lhs = emit_expr(to->operand);
@@ -129,18 +133,40 @@ static int emit_assign_to(Node *from, Node *to) {
     } else if (to->kind == AST_GVAR) {
         int out = (int)(size_t)map_get(&globals, to->varname);
         // printf("%s: [%i]\n", to->varname, out);
-        for (int i = 0; i < to->ty->size; i++) {
+        for (int i = 0; i < from->ty->size; i++) {
             emit("r0 <- int %i", out + i + offset);
             emit("set r1 r0 r%i", rhs + i);
         }
     } else {
-        error("assign to bad thing");
+        error("assign to bad thing: `%s`", node2s(to));
     }
     return rhs;
 }
 
 static int emit_assign(Node *node) {
     return emit_assign_to(node->right, node->left);
+}
+
+static int emit_library_binop(const char *func, int lhs, int rhs) {
+    int ref = nregs++;
+    emit("r0 <- int 1");
+    emit("r%i <- get r1 r0", tmp);
+    emit("r0 <- int %i", stackn);
+    emit("r%i <- add r%i r0", tmp, tmp);
+    Node *v = vec_get(vals, i);
+    int regno = emit_expr(v);
+    emit("set r1 r%i r%i", tmp, lhs);
+    emit("r0 <- int 1");
+    emit("r%i <- add r%i r0", tmp, tmp);
+    emit("set r1 r%i r%i", tmp, rhs);
+    int tmp = emit_pre_call();
+    emit("r%i <- call func.%s r1", ref, func);
+    emit_post_call(tmp);
+    int ret = nregs++;
+    emit("r0 <- int %i", i);
+    emit("r0 <- add r0 r%i", ref);
+    emit("r%i <- get r1 r0", ret + i);
+    return ret;
 }
 
 static int emit_binop(Node *node) {
@@ -181,6 +207,15 @@ static int emit_binop(Node *node) {
             }
             return rreg;
         }
+    }
+    if (node->kind == OP_IPADD) {
+        int addr = emit_addr(node->left);
+        int add = emit_expr(node->right);
+        int ret = nregs++;
+        emit("r%i <- get r1 r%i", ret, addr);
+        emit("r0 <- add r%i r%i", ret, add);
+        emit("set r1 r%i r0", addr);
+        return ret;
     }
     if (node->kind == OP_LOGAND) {
         int ret = nregs++;
@@ -246,39 +281,29 @@ static int emit_binop(Node *node) {
         }
         case '|': {
             int ret = nregs++;
-            int c = emit_pre_call();
-            emit("r%i <- call func.__minivm_bits_or r1 r%i r%i", ret, lhs, rhs);
-            emit_post_call(c);
+            emit("r%i <- bor r%i r%i", ret, lhs, rhs);
             return ret;
         }
         case '&': {
             int ret = nregs++;
-            int c = emit_pre_call();
-            emit("r%i <- call func.__minivm_bits_and r1 r%i r%i", ret, lhs, rhs);
-            emit_post_call(c);
+            emit("r%i <- band r%i r%i", ret, lhs, rhs);
             return ret;
         }
         case '^': {
             int ret = nregs++;
-            int c = emit_pre_call();
-            emit("r%i <- call func.__minivm_bits_xor r1 r%i r%i", ret, lhs, rhs);
-            emit_post_call(c);
+            emit("r%i <- bxor r%i r%i", ret, lhs, rhs);
             return ret;
         }
         case OP_SHL:
         case OP_SAL: {
             int ret = nregs++;
-            int c = emit_pre_call();
-            emit("r%i <- call func.__minivm_bits_shl r1 r%i r%i", ret, lhs, rhs);
-            emit_post_call(c);
+            emit("r%i <- bshl r%i r%i", ret, lhs, rhs);
             return ret;
         }
         case OP_SHR:
         case OP_SAR: {
             int ret = nregs++;
-            int c = emit_pre_call();
-            emit("r%i <- call func.__minivm_bits_shr r1 r%i r%i", ret, lhs, rhs);
-            emit_post_call(c);
+            emit("r%i <- bshr r%i r%i", ret, lhs, rhs);
             return ret;
         }
         case OP_EQ: {
@@ -381,10 +406,6 @@ static int emit_literal(Node *node) {
         int len = strlen(node->sval)+1;
         int where = initmem;
         initmem += len;
-        // emit("r0 <- int %i", );
-        // emit("r%i <- call __minivm_alloca r1", ret);
-        // emit("r%i <- dcall r%i r1 r0", ret, ret);
-        // emit("r%i <- reg r%i", tmp, ret);
         int head = where;
         const char *s = node->sval;
         while (1) {
@@ -399,45 +420,61 @@ static int emit_literal(Node *node) {
             head += 1;
         }
         emit("r%i <- int %i", ret, where);
-        // error("bad string: %s", node2s(node));
     } else {
         emit("r%i <- int %li", ret, node->ival);
     }
     return ret;
 }
 
-static const char *emit_args(Vector *vals, Vector *params) {
-    const char *args = "";
-    for (int i = 0; i < vec_len(vals) && i < vec_len(params); i++) {
+static void emit_args(Vector *vals) {
+    int tmp = nregs++;
+    emit("r0 <- int 1");
+    emit("r%i <- get r1 r0", tmp);
+    emit("r0 <- int %i", stackn);
+    emit("r%i <- add r%i r0", tmp, tmp);
+    int off = 0;
+    for (int i = 0; i < vec_len(vals); i++) {
         Node *v = vec_get(vals, i);
-        int dest = nregs++;
-        args = format("%s r%i", args, dest);
-        emit("r0 <- int 1");
-        emit("r%i <- get r1 r0", dest);
-        emit("r0 <- int %i", stackn);
-        emit("r%i <- add r%i r0", dest, dest);
         int regno = emit_expr(v);
-        for (int i = 0; i < v->ty->size; i++) {
-            emit("r0 <- int %i", i);
-            emit("r0 <- add r0 r%i", dest);
-            emit("set r1 r0 r%i", regno + i);
+        for (int j = 0; j < v->ty->size; j++) {
+            emit("r0 <- int %i", off);
+            emit("r0 <- add r0 r%i", tmp);
+            emit("set r1 r0 r%i", regno+j);
+            off += 1;
         }
     }
-    return args;
+}
+
+static int emit_funcptr_call(Node *node) {
+    emit_args(node->args);
+    int func = emit_expr(node->fptr);
+    int ref = nregs++;
+    int tmp = emit_pre_call();
+    emit("r%i <- dcall r%i r1", ref, func);
+    emit_post_call(tmp);
+    int ret = nregs++;
+    if (node->fptr->ty->ptr->rettype->kind == KVOID) {
+    } else {
+        for (int i = 0; i < node->fptr->ty->ptr->rettype->size; i++) {
+            emit("r0 <- int %i", i);
+            emit("r0 <- add r0 r%i", ref);
+            emit("r%i <- get r1 r0", ret + i);
+        }
+    }
+    return ret;
 }
 
 static int emit_func_call(Node *node) {
-    const char *args = emit_args(node->args, node->ftype->params);
-    if (node->kind == AST_FUNCPTR_CALL) {
-        error("funcptr call");
-    } else if (!strcmp(node->fname, "putchar")) {
-        emit("%s <- get r1%s", args, args);
-        emit("putchar%s", args);
+    if (!strcmp(node->fname, "putchar")) {
+        Node *v = vec_get(node->args, 0);
+        int regno = emit_expr(v);
+        emit("putchar r%i", regno);
         return 0;
     } else {
         int ref = nregs++;
+        emit_args(node->args);
         int tmp = emit_pre_call();
-        emit("r%i <- call func.%s r1%s", ref, node->fname, args);
+        emit("r%i <- call func.%s r1", ref, node->fname);
         emit_post_call(tmp);
         int ret = nregs++;
         if (node->ftype->rettype->kind == KVOID) {
@@ -450,12 +487,6 @@ static int emit_func_call(Node *node) {
         }
         return ret;
     }
-}
-
-static int emit_conv(Node *node) {
-    int reg1 = emit_expr(node->operand);
-    int reg2 = emit_conv_type(node->operand->ty, node->ty, reg1);
-    return reg2;
 }
 
 static void emit_if(Node *node) {
@@ -521,7 +552,6 @@ static int emit_return(Node *node) {
         }
         emit("ret r%i", dest);
     } else {
-        // emit("r0 <- call __minivm_leave r1 r2");
         emit("r0 <- nil");
         emit("ret r0");
     }
@@ -556,7 +586,6 @@ static int emit_lvar(Node *node) {
     return outreg;
 }
 
-
 static int emit_gvar(Node *node) {
     int outreg = nregs;
     nregs += node->ty->size;
@@ -566,6 +595,58 @@ static int emit_gvar(Node *node) {
         emit("r%i <- get r1 r0", outreg + i);
     }
     return outreg;
+}
+
+static int emit_addr(Node *op) {
+    int off = 0;
+    while (1) {
+        if (op->kind == AST_STRUCT_REF) {
+            Type *ent = dict_get(op->struc->ty->fields, op->field);
+            off += ent->offset;
+            op = op->struc;
+        } else if (op->kind == AST_CONV || op->kind == OP_CAST) {
+            op = op->operand;
+        } else {
+            break;
+        }
+    }
+    if (op->kind == AST_DEREF) {
+        int ret = nregs++;
+        int first = emit_expr(op->operand);
+        emit("r%i <- int %i", ret, off);
+        emit("r%i <- add r%i r%i", ret, ret, first);
+        return ret;
+    }
+    if (op->kind == AST_LVAR) {
+        int ret = nregs++;
+        int local = (int)(size_t)map_get(&locals, op->varname);
+        emit("r0 <- int %i", off);
+        emit("r%i <- add r0 r%i", ret, local);
+        return ret;
+    }
+    if (op->kind == AST_GVAR) {
+        int ret = nregs++;
+        int loc = (int)(size_t)map_get(&globals, op->varname);
+        emit("r%i <- int %i", ret, loc+off);
+        return ret;
+    }
+    if (op->kind == AST_FUNCDESG) {
+        int ret = nregs++;
+        emit("r%i <- addr func.%s", ret, op->fname);
+        return ret;
+    }
+    error("cannot handle addr: `&` operator is bad expr: %s", node2s(op));
+    return 0;
+}
+
+static int emit_conv(Node *node) {
+    if (node->operand->ty->kind == KIND_ARRAY && (node->operand->kind == AST_LVAR || node->operand->kind == AST_GVAR)) {
+        return emit_addr(node->operand);
+    } else {
+        int reg1 = emit_expr(node->operand);
+        int reg2 = emit_conv_type(node->operand->ty, node->ty, reg1);
+        return reg2;
+    }
 }
 
 static int emit_struct_ref(Node *node) {
@@ -603,42 +684,8 @@ static int emit_expr(Node *node) {
             return 0;
         case OP_LABEL_ADDR:
             return emit_label_addr(node);
-        case AST_ADDR: {
-            int off = 0;
-            Node *op = node->operand;
-            while (1) {
-                if (op->kind == AST_STRUCT_REF) {
-                    Type *ent = dict_get(op->struc->ty->fields, op->field);
-                    off += ent->offset;
-                    op = op->struc;
-                } else if (op->kind == AST_CONV || op->kind == OP_CAST) {
-                    op = op->operand;
-                } else {
-                    break;
-                }
-            }
-            if (op->kind == AST_DEREF) {
-                int ret = nregs++;
-                int first = emit_expr(op->operand);
-                emit("r%i <- int %i", ret, off);
-                emit("r%i <- add r%i r%i", ret, ret, first);
-                return ret;
-            }
-            if (op->kind == AST_LVAR) {
-                int ret = nregs++;
-                int local = (int)(size_t)map_get(&locals, op->varname);
-                emit("r0 <- int %i", off);
-                emit("r%i <- add r0 r%i", ret, local);
-                return ret;
-            }
-            if (op->kind == AST_GVAR) {
-                int ret = nregs++;
-                int loc = (int)(size_t)map_get(&globals, op->varname);
-                emit("r%i <- int %i", ret, loc+off);
-                return ret;
-            }
-            error("cannot handle addr: `&` operator is bad expr: %s", node2s(node));
-        }
+        case AST_ADDR:
+            return emit_addr(node->operand);
         case AST_DEREF:
             return emit_deref(node);
         case AST_GOTO:
@@ -656,8 +703,7 @@ static int emit_expr(Node *node) {
         case AST_LVAR:
             return emit_lvar(node);
         case AST_FUNCPTR_CALL:
-            error("dcall");
-            return 0;
+            return emit_funcptr_call(node);
         case AST_FUNCALL:
             return emit_func_call(node);
         case AST_CONV:
@@ -741,6 +787,7 @@ static int emit_expr(Node *node) {
         case OP_SAR:
         case OP_LOGAND:
         case OP_LOGOR:
+        case OP_IPADD:
             return emit_binop(node);
         default:
             error("node(%i) = %s", node->kind, node2s(node));
@@ -756,6 +803,7 @@ static void emit_func_prologue(Node *func) {
         nregs = 5;
         for (int i = 0; i < vec_len(&globalinitval); i++) {
             union {int i; Node *n;} *pair = vec_get(&globalinitval, i);
+            // printf("%s : %s\n", node2s(pair[1].n), node2s(pair[2].n));
             Node *initval = pair[1].n;
             int val = emit_expr(initval);
             for (int o = 0; o < initval->ty->size; o++) {
@@ -771,9 +819,9 @@ static void emit_func_prologue(Node *func) {
         }
         emit("jump __entry_main");
         emit_noindent("@__entry_memory");
-        emit("r1 <- int 1000000");
+        emit("r1 <- int 125000000");
         emit("r1 <- arr r1");
-        emit("r2 <- int %i", initmem);
+        emit("r2 <- int %i", initmem + 16);
         emit("r0 <- int 1");
         emit("set r1 r0 r2");
         emit("jump __entry_init");
@@ -784,29 +832,27 @@ static void emit_func_prologue(Node *func) {
         emit("exit");
         emit_noindent("func func.%s", func->fname, nregs);
     } else {
+        stackn = 0;
         emit_noindent("func func.%s", func->fname, nregs);
+        // for (int i = 0; func->fname[i] != '\0'; i++) {
+        //     emit("r0 <- int %i", (int) func->fname[i]);
+        //     emit("putchar r0");
+        // }
+        // emit("r0 <- int 10");
+        // emit("putchar r0");
         rettype = func->ty->rettype;
         locals = EMPTY_MAP;
-        nregs = vec_len(func->params) + 3;
+        nregs = 2;
         int tmp = nregs++;
+        emit("r0 <- int 1");
+        emit("r%i <- get r1 r0", tmp);
         for (int i = 0; i < vec_len(func->params); i++) {
             Node *param = vec_get(func->params, i);
-            int src = i + 2;
-            int dest = nregs++;
-            emit("r0 <- int 1");
-            emit("r%i <- get r1 r0", dest);
+            int src = nregs++;
             emit("r0 <- int %i", stackn);
-            emit("r%i <- add r%i r0", dest, dest);
+            emit("r%i <- add r0 r%i", src, tmp);
+            map_put(&locals, param->varname, (void *)(size_t)src);
             stackn += param->ty->size;
-            map_put(&locals, param->varname, (void *)(size_t)dest);
-            for (int i = 0; i < param->ty->size; i++) {
-                emit("r%i <- get r1 r%i", tmp, src);
-                emit("r0 <- int %i", i);
-                emit("r0 <- add r0 r%i", dest);
-                emit("set r1 r0 r%i", tmp);
-                emit("r0 <- int 1");
-                emit("r%i <- add r%i r0", src, src);
-            }
         }
     }
     curfunc = func->fname;
@@ -823,14 +869,21 @@ void emit_toplevel(Node *v) {
     } else if (v->kind == AST_DECL) {
         int base = initmem;
         map_put(&globals, v->declvar->varname, (void *)(size_t)base);
+        for (int i = 0; i < v->declvar->ty->size; i++) {
+            int *pair = malloc(sizeof(int) * 2);
+            pair[0] = base + i;
+            pair[1]= 0;
+            vec_push(&globalinit, pair);
+        }
         initmem += v->declvar->ty->size;
         if (v->declinit) {
             for (int i = 0; i < vec_len(v->declinit); i++) {
                 Node *init = vec_get(v->declinit, i);
                 // for (int o = 0; o < init->initval->ty->size; o++) {
-                    union {int i; Node *n;} *pair = malloc(sizeof(union {int i; Node *n;}) * 2);
+                    union {int i; Node *n;} *pair = malloc(sizeof(union {int i; Node *n;}) * 3);
                     pair[0].i = init->initoff + base;
                     pair[1].n = init->initval;
+                    pair[2].n = v->declvar;
                     vec_push(&globalinitval, pair);
                 // }
             }
