@@ -10,10 +10,13 @@
 #include "../vm/vm/ir/toir.h"
 #include "8cc.h"
 
+void vm_ir_be_racket(FILE *of, size_t nargs, vm_ir_block_t *blocks);
+
 enum {
     OUTPUT_BC,
     OUTPUT_JIT,
     OUTPUT_ASM,
+    OUTPUT_RACKET,
 };
 
 static Vector *infiles = &EMPTY_VECTOR;
@@ -83,6 +86,8 @@ static int parseopt(int argc, char **argv) {
                         outtype = OUTPUT_ASM;
                     } else if (!strcmp(ext, ".bc")) {
                         outtype = OUTPUT_BC;
+                    } else if (!strcmp(ext, ".racket") || !strcmp(ext, ".rkt")) {
+                        outtype = OUTPUT_RACKET;
                     } else {
                         fprintf(stderr, "unknown file extension: %s\n", ext);
                         usage(1);
@@ -175,6 +180,12 @@ int main(int argc, char **argv) {
         return 0;
     }
     vm_ir_block_t *blocks = vm_ir_parse(buf.nops, buf.ops);
-    vm_run_arch_int(buf.nops, buf.ops, NULL);
+    if (outtype == OUTPUT_RACKET) {
+        FILE *out = fopen(outfile, "wb");
+        vm_ir_be_racket(out, buf.nops, blocks);
+        fclose(out);
+    } else {
+        vm_run_arch_int(buf.nops, buf.ops, NULL);
+    }
     return 0;
 }
