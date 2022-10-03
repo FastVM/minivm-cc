@@ -1,22 +1,19 @@
 // Copyright 2012 Rui Ueyama. Released under the MIT license.
 
-#include <stdlib.h>
-#include <string.h>
-#include <sys/types.h>
-#include <unistd.h>
-
 #include "../vm/vm/asm.h"
 #include "../vm/vm/ir/be/int3.h"
 #include "../vm/vm/ir/toir.h"
 #include "8cc.h"
 
+void vm_ir_be_js(FILE *of, size_t nargs, vm_ir_block_t *blocks);
 void vm_ir_be_racket(FILE *of, size_t nargs, vm_ir_block_t *blocks);
 
 enum {
     OUTPUT_BC,
     OUTPUT_JIT,
     OUTPUT_ASM,
-    OUTPUT_RACKET,
+    OUTPUT_RKT,
+    OUTPUT_JS,
 };
 
 static Vector *infiles = &EMPTY_VECTOR;
@@ -86,8 +83,10 @@ static int parseopt(int argc, char **argv) {
                         outtype = OUTPUT_ASM;
                     } else if (!strcmp(ext, ".bc")) {
                         outtype = OUTPUT_BC;
+                    } else if (!strcmp(ext, ".js") || !strcmp(ext, ".ts")) {
+                        outtype = OUTPUT_JS;
                     } else if (!strcmp(ext, ".racket") || !strcmp(ext, ".rkt")) {
-                        outtype = OUTPUT_RACKET;
+                        outtype = OUTPUT_RKT;
                     } else {
                         fprintf(stderr, "unknown file extension: %s\n", ext);
                         usage(1);
@@ -116,7 +115,6 @@ char *get_base_file(void) {
 
 int main(int argc, char **argv) {
     emit_end();
-    setbuf(stdout, NULL);
     parseopt(argc, argv);
     Vector *asmbufs = &EMPTY_VECTOR;
     if (rtsrc != NULL) {
@@ -180,7 +178,11 @@ int main(int argc, char **argv) {
         return 0;
     }
     vm_ir_block_t *blocks = vm_ir_parse(buf.nops, buf.ops);
-    if (outtype == OUTPUT_RACKET) {
+    if (outtype == OUTPUT_JS) {
+        FILE *out = fopen(outfile, "wb");
+        vm_ir_be_js(out, buf.nops, blocks);
+        fclose(out);
+    } else if (outtype == OUTPUT_RKT) {
         FILE *out = fopen(outfile, "wb");
         vm_ir_be_racket(out, buf.nops, blocks);
         fclose(out);

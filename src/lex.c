@@ -21,11 +21,6 @@
  * For more information about pp-tokens, see C11 6.4 "Lexical Elements".
  */
 
-#include <ctype.h>
-#include <errno.h>
-#include <stdlib.h>
-#include <string.h>
-
 #include "8cc.h"
 
 static Vector *buffers = &EMPTY_VECTOR;

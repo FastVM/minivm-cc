@@ -5,13 +5,6 @@
  * in this document: https://github.com/rui314/8cc/wiki/cpp.algo.pdf
  */
 
-#include <ctype.h>
-#include <locale.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
-#include <unistd.h>
-#include <libgen.h>
 
 #include "8cc.h"
 
@@ -21,7 +14,9 @@ static Map *keywords = &EMPTY_MAP;
 static Map *include_guard = &EMPTY_MAP;
 static Vector *cond_incl_stack = &EMPTY_VECTOR;
 static Vector *std_include_path = &EMPTY_VECTOR;
+#if !defined(VM_WASM)
 static struct tm now;
+#endif
 static Token *cpp_token_zero = &(Token){.kind = TNUMBER, .sval = "0"};
 static Token *cpp_token_one = &(Token){.kind = TNUMBER, .sval = "1"};
 
@@ -705,7 +700,7 @@ static void read_include(Token *hash, File *file, bool isimport) {
         goto err;
     }
     if (!std) {
-        char *dir = file->name ? dirname(strdup(file->name)) : ".";
+        char *dir = file->name ? dirname(strdup(file->name)) : strdup(".");
         if (try_include(dir, filename, isimport))
             return;
     }
@@ -880,6 +875,7 @@ static void make_token_pushback(Token *tmpl, int kind, char *sval) {
     unget_token(tok);
 }
 
+#if !defined(VM_WASM)
 static void handle_date_macro(Token *tmpl) {
     char buf[20];
     strftime(buf, sizeof(buf), "%b %e %Y", &now);
@@ -891,6 +887,7 @@ static void handle_time_macro(Token *tmpl) {
     strftime(buf, sizeof(buf), "%T", &now);
     make_token_pushback(tmpl, TSTRING, strdup(buf));
 }
+#endif
 
 // static void handle_timestamp_macro(Token *tmpl) {
 //     // [GNU] __TIMESTAMP__ is expanded to a string that describes the date
@@ -968,8 +965,10 @@ static void init_predefined_macros() {
 
     define_special_macro("__MINIVM__", handle_minivm_macro);
 
+#if !defined(VM_WASM)
     define_special_macro("__DATE__", handle_date_macro);
     define_special_macro("__TIME__", handle_time_macro);
+#endif
     define_special_macro("__FILE__", handle_file_macro);
     define_special_macro("__LINE__", handle_line_macro);
     define_special_macro("_Pragma", handle_pragma_macro);
@@ -981,12 +980,13 @@ static void init_predefined_macros() {
 }
 
 void init_now() {
+#if !defined(VM_WASM)
     time_t timet = time(NULL);
     now = *localtime(&timet);
+#endif
 }
 
 void cpp_init() {
-    setlocale(LC_ALL, "C");
     init_keywords();
     init_now();
     init_predefined_macros();

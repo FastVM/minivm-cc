@@ -3,17 +3,20 @@
 #ifndef EIGHTCC_H
 #define EIGHTCC_H
 
-#include <assert.h>
 #include <ctype.h>
-#include <inttypes.h>
-#include <stdarg.h>
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdnoreturn.h>
-#include <string.h>
+#include <assert.h>
 #include <time.h>
+#include <errno.h>
+#include <libgen.h>
+
+const char *getcwd(char *cwd, size_t path_max);
+
+#include "../vm/vm/lib.h"
+
+#define malloc(size) (vm_malloc(size))
+#define calloc(a, b) (vm_alloc0((a) * (b)))
+#define realloc(ptr, size) (vm_realloc(ptr, size))
+#define free(ptr) (vm_free((void *)ptr))
 
 enum {
     TIDENT,
@@ -351,7 +354,7 @@ extern bool warning_is_error;
 #define warn(...) warnf(__FILE__ ":" STR(__LINE__), NULL, __VA_ARGS__)
 #define warnt(tok, ...) warnf(__FILE__ ":" STR(__LINE__), token_pos(tok), __VA_ARGS__)
 
-noreturn void errorf(char *line, char *pos, char *fmt, ...);
+void errorf(char *line, char *pos, char *fmt, ...);
 void warnf(char *line, char *pos, char *fmt, ...);
 char *token_pos(Token *tok);
 

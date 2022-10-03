@@ -4,13 +4,6 @@
  * Recursive descendent parser for C.
  */
 
-#include <ctype.h>
-#include <errno.h>
-#include <limits.h>
-#include <stdlib.h>
-#include <string.h>
-#include <strings.h>
-
 #include "8cc.h"
 
 // The largest alignment requirement on x86-64. When we are allocating memory
@@ -1793,10 +1786,6 @@ static int comp_init(const void *p, const void *q) {
     return 0;
 }
 
-static void sort_inits(Vector *inits) {
-    qsort(vec_body(inits), vec_len(inits), sizeof(void *), comp_init);
-}
-
 static void read_struct_initializer_sub(Vector *inits, Type *ty, int off, bool designated) {
     bool has_brace = maybe_read_brace();
     Vector *keys = dict_keys(ty->fields);
@@ -1849,7 +1838,6 @@ static void read_struct_initializer_sub(Vector *inits, Type *ty, int off, bool d
 
 static void read_struct_initializer(Vector *inits, Type *ty, int off, bool designated) {
     read_struct_initializer_sub(inits, ty, off, designated);
-    sort_inits(inits);
 }
 
 static void read_array_initializer_sub(Vector *inits, Type *ty, int off, bool designated) {
@@ -1894,7 +1882,6 @@ finish:
 
 static void read_array_initializer(Vector *inits, Type *ty, int off, bool designated) {
     read_array_initializer_sub(inits, ty, off, designated);
-    sort_inits(inits);
 }
 
 static void read_initializer_list(Vector *inits, Type *ty, int off, bool designated) {

@@ -1,10 +1,5 @@
 // Copyright 2014 Rui Ueyama. Released under the MIT license.
 
-#include <errno.h>
-#include <limits.h>
-#include <string.h>
-#include <unistd.h>
-
 #include "8cc.h"
 
 // Returns the shortest path for the given full path to a file.
@@ -18,11 +13,11 @@ static char *clean(char *p) {
             p++;
             continue;
         }
-        if (!memcmp("./", p, 2)) {
+        if (!strncmp("./", p, 2)) {
             p += 2;
             continue;
         }
-        if (!memcmp("../", p, 3)) {
+        if (!strncmp("../", p, 3)) {
             p += 3;
             if (q == buf + 1)
                 continue;

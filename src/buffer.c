@@ -1,10 +1,5 @@
 // Copyright 2012 Rui Ueyama. Released under the MIT license.
 
-#include <ctype.h>
-#include <stdarg.h>
-#include <stdlib.h>
-#include <string.h>
-
 #include "8cc.h"
 
 #define INIT_SIZE 8

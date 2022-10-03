@@ -1,7 +1,5 @@
 // Copyright 2012 Rui Ueyama. Released under the MIT license.
 
-#include <stdlib.h>
-
 #include "8cc.h"
 
 Dict *make_dict() {

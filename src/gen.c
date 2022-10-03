@@ -1,12 +1,5 @@
 // Copyright 2012 Rui Ueyama. Released under the MIT license.
 
-#include <stdarg.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
-
 #include "8cc.h"
 
 #define BUFFER_EXTRA 0
@@ -803,7 +796,6 @@ static void emit_func_prologue(Node *func) {
         }
         for (int i = 0; i < vec_len(&globalinitval); i++) {
             union {int i; Node *n;} *pair = vec_get(&globalinitval, i);
-            // printf("%s : %s\n", node2s(pair[1].n), node2s(pair[2].n));
             Node *initval = pair[1].n;
             int val = emit_expr(initval);
             for (int o = 0; o < initval->ty->size; o++) {
@@ -869,7 +861,6 @@ void emit_toplevel(Node *v) {
     } else if (v->kind == AST_DECL) {
         int base = initmem;
         map_put(&globals, v->declvar->varname, (void *)(size_t)base);
-        
         initmem += v->declvar->ty->size;
         if (v->declinit) {\
             for (int i = 0; i < v->declvar->ty->size; i++) {
@@ -879,13 +870,10 @@ void emit_toplevel(Node *v) {
             }
             for (int i = 0; i < vec_len(v->declinit); i++) {
                 Node *init = vec_get(v->declinit, i);
-                // for (int o = 0; o < init->initval->ty->size; o++) {
-                    union {int i; Node *n;} *pair = malloc(sizeof(union {int i; Node *n;}) * 3);
-                    pair[0].i = init->initoff + base;
-                    pair[1].n = init->initval;
-                    pair[2].n = v->declvar;
-                    vec_push(&globalinitval, pair);
-                // }
+                union {int i; Node *n;} *pair = malloc(sizeof(union {int i; Node *n;}) * 2);
+                pair[0].i = init->initoff + base;
+                pair[1].n = init->initval;
+                vec_push(&globalinitval, pair);
             }
             // error("unimplemented: global variable : %s", node2s(v));
             // warn("global `%s`: not nil", v->declvar->varname);
