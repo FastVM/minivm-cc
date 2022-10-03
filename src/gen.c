@@ -9,7 +9,7 @@
 
 #include "8cc.h"
 
-#define BUFFER_EXTRA 100
+#define BUFFER_EXTRA 0
 
 bool dumpsource = true;
 
@@ -256,6 +256,11 @@ static int emit_binop(Node *node) {
         case '/': {
             int ret = nregs++;
             emit("r%i <- div r%i r%i", ret, lhs, rhs);
+            if (kind_is_int(node->ty->kind)) {
+                emit("r0 <- int 1");
+                emit("r0 <- mod r%i r0", ret);
+                emit("r%i <- sub r%i r0", ret, ret);
+            }
             return ret;
         }
         case '%': {
@@ -739,7 +744,7 @@ static int emit_expr(Node *node) {
             char *nonzero = make_label();
             char *out = make_label();
             emit("r0 <- int 0");
-            emit("beq r%i r0 %s%s %s%s", reg, curfunc, zero, curfunc, nonzero);
+            emit("beq r%i r0 %s%s %s%s", reg, curfunc, nonzero, curfunc, zero);
             int ret = nregs++;
             emit_label(zero);
             emit("r%i <- int 1", ret);
@@ -829,12 +834,12 @@ static void emit_func_prologue(Node *func) {
     } else {
         stackn = 0;
         emit_noindent("func func.%s", func->fname, nregs);
-        for (int i = 0; func->fname[i] != '\0'; i++) {
-            emit("r0 <- int %i", (int) func->fname[i]);
-            emit("putchar r0");
-        }
-        emit("r0 <- int 10");
-        emit("putchar r0");
+        // for (int i = 0; func->fname[i] != '\0'; i++) {
+        //     emit("r0 <- int %i", (int) func->fname[i]);
+        //     emit("putchar r0");
+        // }
+        // emit("r0 <- int 10");
+        // emit("putchar r0");
         rettype = func->ty->rettype;
         locals = EMPTY_MAP;
         nregs = 2;
@@ -864,13 +869,14 @@ void emit_toplevel(Node *v) {
     } else if (v->kind == AST_DECL) {
         int base = initmem;
         map_put(&globals, v->declvar->varname, (void *)(size_t)base);
-        for (int i = 0; i < v->declvar->ty->size; i++) {
-            int *pair = malloc(sizeof(int) * 1);
-            pair[0] = base + i;
-            vec_push(&globalzero, pair);
-        }
+        
         initmem += v->declvar->ty->size;
-        if (v->declinit) {
+        if (v->declinit) {\
+            for (int i = 0; i < v->declvar->ty->size; i++) {
+                int *pair = malloc(sizeof(int) * 1);
+                pair[0] = base + i;
+                vec_push(&globalzero, pair);
+            }
             for (int i = 0; i < vec_len(v->declinit); i++) {
                 Node *init = vec_get(v->declinit, i);
                 // for (int o = 0; o < init->initval->ty->size; o++) {
