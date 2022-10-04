@@ -7,7 +7,7 @@ int *x;
 
 int main() {
     *x = 1000;
-    putn(*x);
+    printf("%i", *x);
     putchar('\n');
     return 0;
 }

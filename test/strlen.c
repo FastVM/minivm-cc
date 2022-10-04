@@ -8,7 +8,7 @@ int strlen(const char *str) {
 }
 
 int main() {
-    putn(strlen("four"));
+    printf("%i", strlen("four"));
     putchar('\n');
     return 0;
 }

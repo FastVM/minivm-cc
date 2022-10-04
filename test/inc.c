@@ -2,7 +2,7 @@
 #include <stdio.h>
 
 #if !defined(__MINIVM__)
-void putn(int n) {
+void printf("%i", int n) {
     printf("%i", n);
 }
 #endif
@@ -13,9 +13,9 @@ int main() {
     y += ++x;
     x += y--;
     y += x--;
-    putn(x);
+    printf("%i", x);
     putchar(':');
-    putn(y);
+    printf("%i", y);
     putchar('\n');
     return 0;
 }

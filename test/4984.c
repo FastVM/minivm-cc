@@ -13,11 +13,6 @@ int main() {
     int y = 1 + *px;
     x += y;
     y -= x / 2;
-#if defined(__MINIVM__)
-    putn(x - y*2 + 1);
-#else
-    printf("%i", x - y*2 + 1);
-#endif
-    putchar('\n');
+    printf("%i\n", x - y*2 + 1);
     return 0;
 }

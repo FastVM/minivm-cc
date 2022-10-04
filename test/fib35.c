@@ -16,8 +16,8 @@ void printf("%i", int n) {
     putchar(n % 10 + '0');
 }
 
-int _start() {
-    printf("%i", fib(40));
+int main() {
+    printf("%i", fib(35));
     putchar('\n');
     return 0;
 }

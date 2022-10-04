@@ -11,7 +11,6 @@ static Buffer *outbuf = &(Buffer){0, 0, 0};
 static const char *curfunc;
 static Map globals = EMPTY_MAP;
 static Map locals;
-static Type *rettype;
 static Vector globalzero = EMPTY_VECTOR;
 static Vector globalinit = EMPTY_VECTOR;
 static Vector globalinitval = EMPTY_VECTOR;
@@ -47,21 +46,42 @@ static void emit_label(char *label) {
     emit_noindent("@%s%s", curfunc, label);
 }
 
-
-static int emit_pre_call(void) {
-    int reg = nregs++;
-    emit("r0 <- int 1");
-    emit("r%i <- get r1 r0", reg);
-    emit("r0 <- int %i", stackn + BUFFER_EXTRA);
-    emit("r%i <- add r%i r0", reg, reg);
-    emit("r0 <- int 1");
-    emit("set r1 r0 r%i", reg);
-    return reg;
+static int emit_add_ri(int reg, int num) {
+    if (num == 0) {
+        return reg;
+    } else {
+        int out = nregs++;
+        emit("r%i <- int %i", out, num);
+        emit("r%i <- add r%i r%i", out, out, reg);
+        return out;
+    }
 }
 
-static void emit_post_call(int reg) {
+static int emit_mul_ri(int reg, int num) {
+    if (num == 1) {
+        return reg;
+    } else if (num == 2) {
+        int out = nregs++;
+        emit("r%i <- add r%i r%i", out, reg, reg);
+        return out;
+    } else {
+        int out = nregs++;
+        emit("r%i <- int %i", out, num);
+        emit("r%i <- mul r%i r%i", out, out, reg);
+        return out;
+    }
+}
+
+static void emit_pre_call(void) {
+    int reg = nregs++;
+    emit("r0 <- int %i", stackn + BUFFER_EXTRA);
+    emit("r%i <- add r2 r0", reg);
     emit("r0 <- int 1");
     emit("set r1 r0 r%i", reg);
+}
+
+static void emit_post_call(void) {
+    emit("set r1 r0 r2");
 }
 
 static void emit_branch_bool(Node *node, char *zero, char *nonzero) {
@@ -110,16 +130,14 @@ static int emit_assign_to(Node *from, Node *to) {
         int lhs = emit_expr(to->operand);
         // lhs += offset;
         for (int i = 0; i < from->ty->size; i++) {
-            emit("r0 <- int %i", (i + offset));
-            emit("r0 <- add r0 r%i", lhs);
-            emit("set r1 r0 r%i", rhs + i);
+            int where = emit_add_ri(lhs, i + offset);
+            emit("set r1 r%i r%i", where, rhs + i);
         }
     } else if (to->kind == AST_LVAR) {
         int out = (int)(size_t)map_get(&locals, to->varname);
         for (int i = 0; i < from->ty->size; i++) {
-            emit("r0 <- int %i", i);
-            emit("r0 <- add r0 r%i", out);
-            emit("set r1 r0 r%i", rhs + i);
+            int where = emit_add_ri(2, i + out);
+            emit("set r1 r%i r%i", where, rhs + i);
         }
     } else if (to->kind == AST_GVAR) {
         int out = (int)(size_t)map_get(&globals, to->varname);
@@ -144,13 +162,8 @@ static int emit_binop(Node *node) {
             int lhs = emit_expr(node->left);
             int rhs = emit_expr(node->right);
             int rreg = nregs++;
-            // if (node->left->ty->ptr->size == 1) {
-            //     emit("r%i <- add r%i r%i", rreg, lhs, rhs);
-            // } else {
-            emit("r0 <- int %i", node->left->ty->ptr->size);
-            emit("r0 <- mul r0 r%i", rhs);
-            emit("r%i <- add r%i r0", rreg, lhs);
-            // }
+            int reg = emit_mul_ri(rhs, node->left->ty->ptr->size);
+            emit("r%i <- add r%i r%i", rreg, lhs, reg);
             return rreg;
         }
         if (node->kind == '-') {
@@ -162,16 +175,17 @@ static int emit_binop(Node *node) {
                     emit("r%i <- sub r%i r%i", rreg, lhs, rhs);
                 } else {
                     emit("r%i <- sub r%i r%i", rreg, lhs, rhs);
-                    emit("r0 <- int %i", node->left->ty->ptr->size);
-                    emit("r%i <- div r%i r0", rreg);
+                    if (node->left->ty->ptr->size != 1) {
+                        emit("r0 <- int %i", node->left->ty->ptr->size);
+                        emit("r%i <- div r%i r0", rreg, rreg);
+                    }
                 }
             } else {
                 if (node->left->ty->ptr->size == 1) {
                     emit("r%i <- sub r%i r%i", rreg, lhs, rhs);
                 } else {
-                    emit("r0 <- int %i", node->left->ty->ptr->size);
-                    emit("r0 <- mul r0 %i", rhs);
-                    emit("r%i <- sub r%i r0", rreg, lhs);
+                    int reg = emit_mul_ri(rhs, node->left->ty->ptr->size);
+                    emit("r%i <- sub r%i r%i", rreg, lhs, reg);
                 }
             }
             return rreg;
@@ -231,6 +245,9 @@ static int emit_binop(Node *node) {
     int lhs = emit_expr(node->left);
     int rhs = emit_expr(node->right);
     switch (node->kind) {
+        case ',': {
+            return rhs;
+        }
         case '+': {
             int ret = nregs++;
             emit("r%i <- add r%i r%i", ret, lhs, rhs);
@@ -413,17 +430,13 @@ static void emit_args(Vector *vals) {
     for (int i = 0; i < vec_len(vals); i++) {
         buf[i] = emit_expr(vec_get(vals, i));
     }
-    int tmp = nregs++;
-    emit("r0 <- int 1");
-    emit("r%i <- get r1 r0", tmp);
     int off = 0;
     for (int i = 0; i < vec_len(vals); i++) {
         Node *v = vec_get(vals, i);
         int regno = buf[i];
         for (int j = 0; j < v->ty->size; j++) {
-            emit("r0 <- int %i", off + stackn + BUFFER_EXTRA);
-            emit("r0 <- add r0 r%i", tmp);
-            emit("set r1 r0 r%i", regno+j);
+            int where = emit_add_ri(2, off + stackn + BUFFER_EXTRA);
+            emit("set r1 r%i r%i", where, regno+j);
             off += 1;
         }
     }
@@ -433,15 +446,14 @@ static int emit_funcptr_call(Node *node) {
     int func = emit_expr(node->fptr);
     int ref = nregs++;
     emit_args(node->args);
-    int tmp = emit_pre_call();
+    emit_pre_call();
     emit("r%i <- dcall r%i r1", ref, func);
-    emit_post_call(tmp);
+    emit_post_call();
     int ret = nregs++;
     if (node->fptr->ty->ptr->rettype->kind != KVOID) {
         for (int i = 0; i < node->fptr->ty->ptr->rettype->size; i++) {
-            emit("r0 <- int %i", i);
-            emit("r0 <- add r0 r%i", ref);
-            emit("r%i <- get r1 r0", ret + i);
+            int where = emit_add_ri(ref, i);
+            emit("r%i <- get r1 r%i", ret + i, where);
         }
     }
     return ret;
@@ -461,15 +473,14 @@ static int emit_func_call(Node *node) {
         int ref = nregs;
         nregs += node->ftype->rettype->size;
         emit_args(node->args);
-        int tmp = emit_pre_call();
+        emit_pre_call();
         emit("r%i <- call func.%s r1", ref, node->fname);
-        emit_post_call(tmp);
+        emit_post_call();
         int ret = nregs++;
         if (node->ftype->rettype->kind != KVOID) {
             for (int i = 0; i < node->ftype->rettype->size; i++) {
-                emit("r0 <- int %i", i);
-                emit("r0 <- add r0 r%i", ref);
-                emit("r%i <- get r1 r0", ret + i);
+                int where = emit_add_ri(ref, i);
+                emit("r%i <- get r1 r%i", ret + i, where);
             }
         }
         return ret;
@@ -527,10 +538,8 @@ static int emit_ternary(Node *node) {
 static int emit_return(Node *node) {
     if (node->retval) {
         int dest = nregs++;
-        emit("r0 <- int 1");
-        emit("r%i <- get r1 r0", dest);
         emit("r0 <- int %i", stackn + BUFFER_EXTRA);
-        emit("r%i <- add r%i r0", dest, dest);
+        emit("r%i <- add r2 r0", dest);
         int regno = emit_expr(node->retval);
         for (int i = 0; i < node->retval->ty->size; i++) {
             emit("r0 <- int %i", i);
@@ -548,27 +557,25 @@ static int emit_return(Node *node) {
 static void emit_local_store(int where, Node *node) {
     int r = emit_expr(node);
     for (int i = 0; i < node->ty->size; i++) {
-        emit("set r1 r%i r%i", where + i, r + i);
+        emit("r0 <- int %i", where + i);
+        emit("r0 <- add r0 r2");
+        emit("set r1 r0 r%i", r + i);
     }
 }
 
 static int emit_lvar(Node *node) {
+    int reg = (int)(size_t)map_get(&locals, node->varname);
     if (node->lvarinit) {
-        int n = nregs;
-        nregs += node->ty->size;
         for (int i = 0; i < vec_len(node->lvarinit); i++) {
             Node *init = vec_get(node->lvarinit, i);
-            emit_local_store(n + init->initoff, init->initval);
+            emit_local_store(reg + init->initoff, init->initval);
         }
-        return n;
     }
     int outreg = nregs;
     nregs += node->ty->size;
-    int reg = (int)(size_t)map_get(&locals, node->varname);
     for (int i = 0; i < node->ty->size; i++) {
-        emit("r0 <- int %i", i);
-        emit("r0 <- add r0 r%i", reg);
-        emit("r%i <- get r1 r0", outreg + i);
+        int where = emit_add_ri(2, reg+i);
+        emit("r%i <- get r1 r%i", outreg + i, where);
     }
     return outreg;
 }
@@ -607,8 +614,8 @@ static int emit_addr(Node *op) {
     if (op->kind == AST_LVAR) {
         int ret = nregs++;
         int local = (int)(size_t)map_get(&locals, op->varname);
-        emit("r0 <- int %i", off);
-        emit("r%i <- add r0 r%i", ret, local);
+        emit("r%i <- int %i", ret, local+off);
+        emit("r%i <- add r%i r2", ret, ret);
         return ret;
     }
     if (op->kind == AST_GVAR) {
@@ -699,13 +706,9 @@ static int emit_expr(Node *node) {
             emit_if(node);
             return 0;
         case AST_DECL: {
-            int n = nregs++;
-            emit("r0 <- int 1");
-            emit("r%i <- get r1 r0", n);
-            emit("r0 <- int %i", stackn);
-            emit("r%i <- add r%i r0", n, n);
-            stackn += node->declvar->ty->size;
+            int n = stackn;
             map_put(&locals, node->declvar->varname, (void *)(size_t)n);
+            stackn += node->declvar->ty->size;
             if (node->declinit) {
                 for (int i = 0; i < vec_len(node->declinit); i++) {
                     Node *init = vec_get(node->declinit, i);
@@ -756,6 +759,7 @@ static int emit_expr(Node *node) {
             emit("r%i <- sub r0 r%i", ret, ret);
             return ret;
         }
+        case ',':
         case '+':
         case '-':
         case '*':
@@ -811,41 +815,31 @@ static void emit_func_prologue(Node *func) {
         }
         emit("jump __entry_main");
         emit_noindent("@__entry_memory");
-        emit("r1 <- int 125000000");
+        emit("r1 <- int 12500000");
         emit("r1 <- arr r1");
         emit("r2 <- int %i", initmem + 16);
         emit("r0 <- int 1");
         emit("set r1 r0 r2");
         emit("jump __entry_init");
         emit_noindent("@__entry_main");
-        int creg = emit_pre_call();
+        // emit_pre_call();
         emit("r0 <- call func.%s r1", func->fname);
-        emit_post_call(creg);
+        // emit_post_call();
         emit("exit");
-        emit_noindent("func func.%s", func->fname, nregs);
-    } else {
-        stackn = 0;
-        emit_noindent("func func.%s", func->fname, nregs);
-        // for (int i = 0; func->fname[i] != '\0'; i++) {
-        //     emit("r0 <- int %i", (int) func->fname[i]);
-        //     emit("putchar r0");
-        // }
-        // emit("r0 <- int 10");
-        // emit("putchar r0");
-        rettype = func->ty->rettype;
-        locals = EMPTY_MAP;
-        nregs = 2;
-        int tmp = nregs++;
-        emit("r0 <- int 1");
-        emit("r%i <- get r1 r0", tmp);
-        for (int i = 0; i < vec_len(func->params); i++) {
-            Node *param = vec_get(func->params, i);
-            int src = nregs++;
-            emit("r0 <- int %i", stackn);
-            emit("r%i <- add r0 r%i", src, tmp);
-            map_put(&locals, param->varname, (void *)(size_t)src);
-            stackn += param->ty->size;
-        }
+    }
+    stackn = 0;
+    emit_noindent("func func.%s", func->fname, nregs);
+    locals = EMPTY_MAP;
+    nregs = 3;
+    emit("r0 <- int 1");
+    emit("r2 <- get r1 r0");
+    for (int i = 0; i < vec_len(func->params); i++) {
+        Node *param = vec_get(func->params, i);
+        map_put(&locals, param->varname, (void *)(size_t)stackn);
+        stackn += param->ty->size;
+    }
+    if (func->ty->hasva) {
+        stackn += 8;
     }
     curfunc = func->fname;
 }

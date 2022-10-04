@@ -26,7 +26,7 @@ int main(int argc, char **argv) {
 #if !defined(__MINIVM__)
     printf("%i\n", count);
 #else
-    putn(count);
+    printf("%i", count);
     putchar('\n');
 #endif
     return 0;

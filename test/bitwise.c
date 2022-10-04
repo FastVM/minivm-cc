@@ -6,15 +6,15 @@ void print(int n, int l, const char *s, int r) {
 }
 #else
 void print(int n, int l, const char *s, int r) {
-    putn(l);
+    printf("%i", l);
     putchar(' ');
     while (*s) putchar(*s++);
     putchar(' ');
-    putn(r);
+    printf("%i", r);
     putchar(' ');    
     putchar('=');    
     putchar(' ');   
-    putn(n); 
+    printf("%i", n); 
     putchar('\n');
 }
 #endif
