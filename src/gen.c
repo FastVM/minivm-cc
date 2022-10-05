@@ -293,6 +293,16 @@ static int emit_binop(Node *node) {
             char *ift = make_label();
             char *iff = make_label();
             char *end = make_label();
+            // if (kind_is_int(node->left->ty->kind)) {
+            //     emit("r0 <- int 1");
+            //     emit("r0 <- mod r%i r0", lhs);
+            //     emit("r%i <- sub r%i r0", lhs, lhs);
+            // }
+            // if (kind_is_int(node->right->ty->kind)) {
+            //     emit("r0 <- int 1");
+            //     emit("r0 <- mod r%i r0", rhs);
+            //     emit("r%i <- sub r%i r0", rhs, rhs);
+            // }
             emit("beq r%i r%i %s%s %s%s", lhs, rhs, curfunc, iff, curfunc, ift);
             emit_label(iff);
             emit("r%i <- int 0", ret);
@@ -307,12 +317,22 @@ static int emit_binop(Node *node) {
             char *ift = make_label();
             char *iff = make_label();
             char *end = make_label();
+            // if (kind_is_int(node->left->ty->kind)) {
+            //     emit("r0 <- int 1");
+            //     emit("r0 <- mod r%i r0", lhs);
+            //     emit("r%i <- sub r%i r0", lhs, lhs);
+            // }
+            // if (kind_is_int(node->right->ty->kind)) {
+            //     emit("r0 <- int 1");
+            //     emit("r0 <- mod r%i r0", rhs);
+            //     emit("r%i <- sub r%i r0", rhs, rhs);
+            // }
             emit("beq r%i r%i %s%s %s%s", lhs, rhs, curfunc, iff, curfunc, ift);
             emit_label(iff);
-            emit("r%i <- int 0", ret);
+            emit("r%i <- int 1", ret);
             emit("jump %s%s", curfunc, end);
             emit_label(ift);
-            emit("r%i <- int 1", ret);
+            emit("r%i <- int 0", ret);
             emit_label(end);
             return ret;
         }
@@ -383,8 +403,9 @@ static void emit_jmp(char *label) {
 }
 
 static int emit_literal(Node *node) {
-    int ret = nregs++;
     if (node->ty->kind == KIND_ARRAY) {
+        int ret = nregs++;
+        #if 1
         int len = strlen(node->sval) + 1;
         int where = initmem;
         initmem += len;
@@ -402,10 +423,31 @@ static int emit_literal(Node *node) {
             head += 1;
         }
         emit("r%i <- int %i", ret, where);
+        #else
+        int len = strlen(node->sval) + 1;
+        int where = stackn;
+        stackn += len;
+        int head = where;
+        const char *s = node->sval;
+        while (1) {
+            emit("r0 <- int %i", head);
+            emit("r%i <- add r2 r0", ret);
+            emit("r0 <- int %i", (int) *s);
+            emit("set r1 r%i r0", ret);
+            if (*s == '\0') {
+                break;
+            }
+            s += 1;
+            head += 1;
+        }
+        emit("r%i <- int %i", ret, where);
+        #endif
+        return ret;
     } else {
+        int ret = nregs++;
         emit("r%i <- int %li", ret, node->ival);
+        return ret;
     }
-    return ret;
 }
 
 static void emit_args(Vector *vals) {
@@ -447,6 +489,12 @@ static int emit_func_call(Node *node) {
         int reg = nregs++;
         emit("r%i <- getchar", reg);
         return reg;
+    } else if (!strcmp(node->fname, "__builtin_unreachable")) {
+        emit("exit");
+        return 0;
+    } else if (!strcmp(node->fname, "__builtin_trap")) {
+        emit("exit");
+        return 0;
     } else if (!strcmp(node->fname, "putchar")) {
         Node *v = vec_get(node->args, 0);
         int regno = emit_expr(v);
@@ -645,13 +693,14 @@ static int emit_deref(Node *node) {
 
 static int emit_label_addr(Node *node) {
     int outreg = nregs++;
-    emit("r%i <- addr %s%s", outreg, curfunc, node->newlabel);
+    emit("r%i <- addr %s%s", outreg, curfunc, node->label);
     return outreg;
 }
 
 static void emit_computed_goto(Node *node) {
-    int reg = emit_expr(node->operand);
-    emit("djump r%i", reg);
+    // int reg = emit_expr(node->operand);
+    // emit("djump r%i", reg);
+    error("computed goto");
 }
 
 static int emit_expr(Node *node) {
@@ -666,11 +715,11 @@ static int emit_expr(Node *node) {
         case AST_DEREF:
             return emit_deref(node);
         case AST_GOTO:
-            emit("jump %s%s", curfunc, node->newlabel);
+            emit("jump %s%s", curfunc, node->label);
             return 0;
         case AST_LABEL:
-            if (node->newlabel) {
-                emit_label(node->newlabel);
+            if (node->label) {
+                emit_label(node->label);
             }
             return 0;
         case AST_LITERAL:
@@ -757,6 +806,8 @@ static int emit_expr(Node *node) {
         case '^':
         case '|':
         case '&':
+        case OP_SHL:
+        case OP_SHR:
         case OP_SAL:
         case OP_SAR:
         case OP_LOGAND:
@@ -764,34 +815,26 @@ static int emit_expr(Node *node) {
             return emit_binop(node);
         case OP_PRE_DEC:
         case OP_PRE_INC: {
-            // if (node->left->ty->size != 1) {
-            //     error("postfix `++` or `--` on type too big");
-            // }
             int addr = emit_addr(node->operand);
             int ret = nregs++;
             emit("r%i <- get r1 r%i", ret, addr);
-            // if (node->left->ty->kind == KIND_PTR && node->left->ty->ptr->size != 1) {
             int n = node->kind == OP_PRE_DEC ? -1 : 1;
             if (node->operand->ty->kind == KIND_PTR) {
-                n *= node->left->ty->ptr->size;
+                n *= node->operand->ty->ptr->size;
             }
             emit("r0 <- int %i", n);
             emit("r%i <- add r0 r%i", ret, ret);
-            emit("set r1 r%i r%i", addr, ret);
+            emit("set r1 r%i r%I", addr, ret);
             return ret;
         }
         case OP_POST_DEC:
         case OP_POST_INC: {
-            // if (node->left->ty->size != 1) {
-            //     error("postfix `++` or `--` on type too big");
-            // }
             int addr = emit_addr(node->operand);
             int ret = nregs++;
             emit("r%i <- get r1 r%i", ret, addr);
-            // if (node->left->ty->kind == KIND_PTR && node->left->ty->ptr->size != 1) {
             int n = node->kind == OP_POST_DEC ? -1 : 1;
             if (node->operand->ty->kind == KIND_PTR) {
-                n *= node->left->ty->ptr->size;
+                n *= node->operand->ty->ptr->size;
             }
             emit("r0 <- int %i", n);
             emit("r0 <- add r0 r%i", ret);
@@ -831,6 +874,7 @@ static void emit_func_prologue(Node *func) {
             int *pair = vec_get(&globalinit, i);
             emit("r0 <- int %i", pair[0]);
             emit("r2 <- int %i", pair[1]);
+            // printf("set %i %i\n", pair[0], pair[1]);
             emit("set r1 r0 r2");
         }
         emit("jump __entry_main");
@@ -847,8 +891,16 @@ static void emit_func_prologue(Node *func) {
         // emit_post_call();
         emit("exit");
     }
-    stackn = 0;
     emit_noindent("func func.%s", func->fname, nregs);
+#if defined(VM_DEBUG_CC_CALL)
+    for (const char *c = func->fname; *c; c++) {
+        emit("r0 <- int %i", (int)*c);
+        emit("putchar r0");
+    }
+    emit("r0 <- int 10");
+    emit("putchar r0");
+#endif
+    stackn = 0;
     locals = EMPTY_MAP;
     nregs = 3;
     emit("r0 <- int 1");

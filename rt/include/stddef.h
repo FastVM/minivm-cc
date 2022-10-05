@@ -3,7 +3,7 @@
 #include "bits/def.h"
 
 #if !defined(NULL)
-#define NULL ({ (void*)0; })
+#define NULL ((void*)0)
 #endif
 
 typedef __size_t size_t;

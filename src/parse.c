@@ -662,7 +662,7 @@ static void ensure_assignable(Type *totype, Type *fromtype) {
         return;
     if (is_same_struct(totype, fromtype))
         return;
-    error("incompatible kind: <%s> <%s>", ty2s(totype), ty2s(fromtype));
+    error("incompatible kind: <%s> = <%s>", ty2s(totype), ty2s(fromtype));
 }
 
 /*
@@ -1760,6 +1760,10 @@ static int comp_init(const void *p, const void *q) {
     return 0;
 }
 
+static void sort_inits(Vector *inits) {
+    qsort(vec_body(inits), vec_len(inits), sizeof(void *), comp_init);
+}
+
 static void read_struct_initializer_sub(Vector *inits, Type *ty, int off, bool designated) {
     bool has_brace = maybe_read_brace();
     Vector *keys = dict_keys(ty->fields);
@@ -1812,6 +1816,7 @@ static void read_struct_initializer_sub(Vector *inits, Type *ty, int off, bool d
 
 static void read_struct_initializer(Vector *inits, Type *ty, int off, bool designated) {
     read_struct_initializer_sub(inits, ty, off, designated);
+    // sort_inits(inits);
 }
 
 static void read_array_initializer_sub(Vector *inits, Type *ty, int off, bool designated) {

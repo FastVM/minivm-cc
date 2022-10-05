@@ -35,7 +35,7 @@ void __minivm_puts(const char *str) {
 int printf(const char *str, ...) {
     va_list ap;
     va_start(ap, str);
-    for (size_t i = 0; str[i] != '\0'; i++) {
+    for (size_t i = 0; str[i] != 0; i++) {
         if (str[i] == '%') {
             i += 1;
             if (str[i] == 'd' || str[i] == 'i') {
@@ -51,4 +51,16 @@ int printf(const char *str, ...) {
     }
     va_end(ap);
     return 0;
+}
+
+FILE *fopen(const char *name, const char *flags) {
+    return NULL;
+}
+void fclose(FILE *file) {
+}
+int fwrite(void *buf, int s1, int s2, FILE *file) {
+    return s2;
+}
+int fread(void *buf, int s1, int s2, FILE *file) {
+    return s2;
 }

@@ -23,3 +23,5 @@ FILE *fopen(const char *name, const char *flags);
 void fclose(FILE *file);
 int fwrite(void *buf, int s1, int s2, FILE *file);
 int fread(void *buf, int s1, int s2, FILE *file);
+
+#define fprintf(a, ...) printf(__VA_ARGS__)

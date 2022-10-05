@@ -7,32 +7,43 @@
 #define MAGIC "KL21"
 
 #include <ctype.h>
-#include <setjmp.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef __TURBOC__
-#include <dos.h>
-#include <fcntl.h>
-#include <io.h>
-#define BINARY setmode(fd, O_BINARY)
-#define KBDINT      \
-    ctrlbrk(kbbrk); \
-    setcbrk(1)
-#else
-#include <signal.h>
-#ifdef COHERENT
-#define O_RDONLY 0
-#else
-#include <fcntl.h>
-#include <unistd.h>
-#endif
-#define BINARY
-#define KBDINT signal(SIGINT, kbint)
-#endif
+int _write(int fd, const char *buffer, unsigned count) {
+    for (unsigned i = 0; i < count; i++) {
+        putchar(buffer[i]);
+    }
+}
 
-#ifdef __SUBC__
+int _read(const int fd, char *const buffer, const unsigned count) {
+    for (unsigned i = 0; i < count; i++) {
+        buffer[i] = getchar();
+        if (buffer[i] == '\n') {
+            break;
+        }
+    }
+    return count;
+}
+
+int _open(const char *name, int oflag) {
+    printf("%s\n", name);
+    return 0;
+}
+
+int _close(int fd) {
+    return 0;
+}
+
+int _creat(const char *filename, int pmode) {
+    return 0;
+}
+
+void exit() {}
+
+#define O_RDONLY 0
+
 #define write _write
 #define read _read
 #define open _open
@@ -40,14 +51,10 @@
 #define close _close
 #define byte char
 #define cell int
-#define CATCH setjmp(&Restart)
-#define THROW longjmp(&Restart, 1)
-#else
-#define cell short
-#define byte unsigned char
-#define CATCH setjmp(Restart)
-#define THROW longjmp(Restart, 1)
-#endif
+
+#define BINARY
+
+#define THROW __builtin_trap();
 
 #define NNODES 8192
 
@@ -90,7 +97,6 @@ char Outbuf[BUFLEN];
 int Symbols;
 int Id;
 
-jmp_buf Restart;
 volatile int Error;
 
 int Parens;
@@ -1116,10 +1122,7 @@ int kbbrk(void) { return Error = 1; }
 
 int main(int argc, char **argv) {
     init();
-    if (CATCH) exit(1);
     fasload(argc > 1 ? argv[1] : "klisp");
-    CATCH;
-    KBDINT;
     for (;;) {
         Parens = 0;
         Loads = 0;

@@ -115,6 +115,10 @@ int main(int argc, char **argv) {
     Vector *asmbufs = &EMPTY_VECTOR;
     if (rtsrc != NULL) {
         vec_push(infiles, format("%s/src/stdio.c", rtsrc));
+        vec_push(infiles, format("%s/src/ctype.c", rtsrc));
+        vec_push(infiles, format("%s/src/string.c", rtsrc));
+        vec_push(infiles, format("%s/src/ta.c", rtsrc));
+        // start.c must be last
         vec_push(infiles, format("%s/src/start.c", rtsrc));
         add_include_path(format("%s/include", rtsrc));
     }
