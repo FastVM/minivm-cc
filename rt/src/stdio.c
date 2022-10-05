@@ -1,7 +1,7 @@
 
-#include <stdio.h>
 #include <stdarg.h>
 #include <stddef.h>
+#include <stdio.h>
 
 int putchar(int c);
 
@@ -21,7 +21,7 @@ void __minivm_putsi(ptrdiff_t n) {
     }
 }
 
-void  __minivm_puts(const char *str) {
+void __minivm_puts(const char *str) {
     while (1) {
         char chr = *str;
         if (chr == '\0') {
@@ -39,7 +39,9 @@ int printf(const char *str, ...) {
         if (str[i] == '%') {
             i += 1;
             if (str[i] == 'd' || str[i] == 'i') {
-                __minivm_putsi((ptrdiff_t) va_arg(ap, int));
+                __minivm_putsi((ptrdiff_t)va_arg(ap, int));
+            } else if (str[i] == 's') {
+                __minivm_puts(va_arg(ap, const char *));
             } else {
                 putchar('?');
             }

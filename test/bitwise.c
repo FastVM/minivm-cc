@@ -11,10 +11,10 @@ void print(int n, int l, const char *s, int r) {
     while (*s) putchar(*s++);
     putchar(' ');
     printf("%i", r);
-    putchar(' ');    
-    putchar('=');    
-    putchar(' ');   
-    printf("%i", n); 
+    putchar(' ');
+    putchar('=');
+    putchar(' ');
+    printf("%i", n);
     putchar('\n');
 }
 #endif

@@ -191,23 +191,6 @@ static int emit_binop(Node *node) {
             return rreg;
         }
     }
-    if (node->kind == OP_IPADD) {
-        if (node->left->ty->size != 1) {
-            error("postfix `++` or `--` on type too big");
-        }
-        int addr = emit_addr(node->left);
-        int add = emit_expr(node->right);
-        int ret = nregs++;
-        emit("r%i <- get r1 r%i", ret, addr);
-        // if (node->left->ty->kind == KIND_PTR && node->left->ty->ptr->size != 1) {
-        if (node->left->ty->kind == KIND_PTR) {
-            emit("r0 <- int %i", node->left->ty->ptr->size);
-            emit("r%i <- mul r%i r0", add, add);
-        }
-        emit("r0 <- add r%i r%i", ret, add);
-        emit("set r1 r%i r0", addr);
-        return ret;
-    }
     if (node->kind == OP_LOGAND) {
         int ret = nregs++;
         char *end = make_label();
@@ -402,7 +385,7 @@ static void emit_jmp(char *label) {
 static int emit_literal(Node *node) {
     int ret = nregs++;
     if (node->ty->kind == KIND_ARRAY) {
-        int len = strlen(node->sval)+1;
+        int len = strlen(node->sval) + 1;
         int where = initmem;
         initmem += len;
         int head = where;
@@ -410,7 +393,7 @@ static int emit_literal(Node *node) {
         while (1) {
             int *ptr = malloc(sizeof(int) * 2);
             ptr[0] = head;
-            ptr[1] = (int) *s;
+            ptr[1] = (int)*s;
             vec_push(&globalinit, ptr);
             if (*s == '\0') {
                 break;
@@ -436,7 +419,7 @@ static void emit_args(Vector *vals) {
         int regno = buf[i];
         for (int j = 0; j < v->ty->size; j++) {
             int where = emit_add_ri(2, off + stackn + BUFFER_EXTRA);
-            emit("set r1 r%i r%i", where, regno+j);
+            emit("set r1 r%i r%i", where, regno + j);
             off += 1;
         }
     }
@@ -574,7 +557,7 @@ static int emit_lvar(Node *node) {
     int outreg = nregs;
     nregs += node->ty->size;
     for (int i = 0; i < node->ty->size; i++) {
-        int where = emit_add_ri(2, reg+i);
+        int where = emit_add_ri(2, reg + i);
         emit("r%i <- get r1 r%i", outreg + i, where);
     }
     return outreg;
@@ -585,7 +568,7 @@ static int emit_gvar(Node *node) {
     nregs += node->ty->size;
     int where = (int)(size_t)map_get(&globals, node->varname);
     for (int i = 0; i < node->ty->size; i++) {
-        emit("r0 <- int %i", where+i);
+        emit("r0 <- int %i", where + i);
         emit("r%i <- get r1 r0", outreg + i);
     }
     return outreg;
@@ -614,14 +597,14 @@ static int emit_addr(Node *op) {
     if (op->kind == AST_LVAR) {
         int ret = nregs++;
         int local = (int)(size_t)map_get(&locals, op->varname);
-        emit("r%i <- int %i", ret, local+off);
+        emit("r%i <- int %i", ret, local + off);
         emit("r%i <- add r%i r2", ret, ret);
         return ret;
     }
     if (op->kind == AST_GVAR) {
         int ret = nregs++;
         int loc = (int)(size_t)map_get(&globals, op->varname);
-        emit("r%i <- int %i", ret, loc+off);
+        emit("r%i <- int %i", ret, loc + off);
         return ret;
     }
     if (op->kind == AST_FUNCDESG) {
@@ -778,13 +761,47 @@ static int emit_expr(Node *node) {
         case OP_SAR:
         case OP_LOGAND:
         case OP_LOGOR:
-        case OP_IPADD:
             return emit_binop(node);
+        case OP_PRE_DEC:
+        case OP_PRE_INC: {
+            // if (node->left->ty->size != 1) {
+            //     error("postfix `++` or `--` on type too big");
+            // }
+            int addr = emit_addr(node->operand);
+            int ret = nregs++;
+            emit("r%i <- get r1 r%i", ret, addr);
+            // if (node->left->ty->kind == KIND_PTR && node->left->ty->ptr->size != 1) {
+            int n = node->kind == OP_PRE_DEC ? -1 : 1;
+            if (node->operand->ty->kind == KIND_PTR) {
+                n *= node->left->ty->ptr->size;
+            }
+            emit("r0 <- int %i", n);
+            emit("r%i <- add r0 r%i", ret, ret);
+            emit("set r1 r%i r%i", addr, ret);
+            return ret;
+        }
+        case OP_POST_DEC:
+        case OP_POST_INC: {
+            // if (node->left->ty->size != 1) {
+            //     error("postfix `++` or `--` on type too big");
+            // }
+            int addr = emit_addr(node->operand);
+            int ret = nregs++;
+            emit("r%i <- get r1 r%i", ret, addr);
+            // if (node->left->ty->kind == KIND_PTR && node->left->ty->ptr->size != 1) {
+            int n = node->kind == OP_POST_DEC ? -1 : 1;
+            if (node->operand->ty->kind == KIND_PTR) {
+                n *= node->left->ty->ptr->size;
+            }
+            emit("r0 <- int %i", n);
+            emit("r0 <- add r0 r%i", ret);
+            emit("set r1 r%i r0", addr);
+            return ret;
+        }
         default:
             error("node(%i) = %s", node->kind, node2s(node));
     }
 }
-
 
 static void emit_func_prologue(Node *func) {
     if (!strcmp(func->fname, "_start")) {
@@ -799,7 +816,10 @@ static void emit_func_prologue(Node *func) {
             emit("set r1 r0 r2");
         }
         for (int i = 0; i < vec_len(&globalinitval); i++) {
-            union {int i; Node *n;} *pair = vec_get(&globalinitval, i);
+            union {
+                int i;
+                Node *n;
+            } *pair = vec_get(&globalinitval, i);
             Node *initval = pair[1].n;
             int val = emit_expr(initval);
             for (int o = 0; o < initval->ty->size; o++) {
@@ -839,7 +859,7 @@ static void emit_func_prologue(Node *func) {
         stackn += param->ty->size;
     }
     if (func->ty->hasva) {
-        stackn += 8;
+        stackn += 64;
     }
     curfunc = func->fname;
 }
@@ -856,15 +876,20 @@ void emit_toplevel(Node *v) {
         int base = initmem;
         map_put(&globals, v->declvar->varname, (void *)(size_t)base);
         initmem += v->declvar->ty->size;
-        if (v->declinit) {\
-            for (int i = 0; i < v->declvar->ty->size; i++) {
-                int *pair = malloc(sizeof(int) * 1);
-                pair[0] = base + i;
-                vec_push(&globalzero, pair);
+        if (v->declinit) {
+            if (vec_len(v->declinit) != 0) {
+                for (int i = 0; i < v->declvar->ty->size; i++) {
+                    int *pair = malloc(sizeof(int) * 1);
+                    pair[0] = base + i;
+                    vec_push(&globalzero, pair);
+                }
             }
             for (int i = 0; i < vec_len(v->declinit); i++) {
                 Node *init = vec_get(v->declinit, i);
-                union {int i; Node *n;} *pair = malloc(sizeof(union {int i; Node *n;}) * 2);
+                union {
+                    int i;
+                    Node *n;
+                } *pair = malloc(sizeof(union {int i; Node *n; }) * 2);
                 pair[0].i = init->initoff + base;
                 pair[1].n = init->initval;
                 vec_push(&globalinitval, pair);

@@ -5,7 +5,6 @@
  * in this document: https://github.com/rui314/8cc/wiki/cpp.algo.pdf
  */
 
-
 #include "8cc.h"
 
 static Map *macros = &EMPTY_MAP;

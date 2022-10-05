@@ -3,11 +3,11 @@
 #ifndef EIGHTCC_H
 #define EIGHTCC_H
 
-#include <ctype.h>
 #include <assert.h>
-#include <time.h>
+#include <ctype.h>
 #include <errno.h>
 #include <libgen.h>
+#include <time.h>
 
 const char *getcwd(char *cwd, size_t path_max);
 
@@ -142,7 +142,10 @@ enum {
     OP_A_SHR,
     OP_A_SHL,
     OP_LABEL_ADDR,
-    OP_IPADD,
+    OP_POST_INC,
+    OP_POST_DEC,
+    OP_PRE_INC,
+    OP_PRE_DEC,
 #define op(name, _) name,
 #define keyword(name, x, y) name,
 #include "keyword.inc"

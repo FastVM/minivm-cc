@@ -13,6 +13,6 @@ int main() {
     int y = 1 + *px;
     x += y;
     y -= x / 2;
-    printf("%i\n", x - y*2 + 1);
+    printf("%i\n", x - y * 2 + 1);
     return 0;
 }

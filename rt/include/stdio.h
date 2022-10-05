@@ -15,7 +15,7 @@ int printf(const char *fmt, ...);
 
 void __minivm_putsi(__ptrdiff_t n);
 void __minivm_putui(__size_t n);
-void  __minivm_puts(const char *str);
+void __minivm_puts(const char *str);
 int getchar(void);
 int putchar(int chr);
 void puts(const char *c);

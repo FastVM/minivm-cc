@@ -4,6 +4,13 @@
  * Recursive descendent parser for C.
  */
 
+#include <ctype.h>
+#include <errno.h>
+#include <limits.h>
+#include <stdlib.h>
+#include <string.h>
+#include <strings.h>
+
 #include "8cc.h"
 
 // The largest alignment requirement on x86-64. When we are allocating memory
@@ -39,6 +46,22 @@ static char *lcontinue;
 // Objects representing basic types. All variables will be of one of these types
 // or a derived type from one of them. Note that (typename){initializer} is C99
 // feature to write struct literals.
+// Type *type_void = &(Type){ KIND_VOID, 0, 0, false };
+// Type *type_bool = &(Type){ KIND_BOOL, 1, 1, true };
+// Type *type_char = &(Type){ KIND_CHAR, 1, 1, false };
+// Type *type_short = &(Type){ KIND_SHORT, 2, 2, false };
+// Type *type_int = &(Type){ KIND_INT, 4, 4, false };
+// Type *type_long = &(Type){ KIND_LONG, 8, 8, false };
+// Type *type_llong = &(Type){ KIND_LLONG, 8, 8, false };
+// Type *type_uchar = &(Type){ KIND_CHAR, 1, 1, true };
+// Type *type_ushort = &(Type){ KIND_SHORT, 2, 2, true };
+// Type *type_uint = &(Type){ KIND_INT, 4, 4, true };
+// Type *type_ulong = &(Type){ KIND_LONG, 8, 8, true };
+// Type *type_ullong = &(Type){ KIND_LLONG, 8, 8, true };
+// Type *type_float = &(Type){ KIND_FLOAT, 4, 4, false };
+// Type *type_double = &(Type){ KIND_DOUBLE, 8, 8, false };
+// Type *type_ldouble = &(Type){ KIND_LDOUBLE, 8, 8, false };
+// Type *type_enum = &(Type){ KIND_ENUM, 4, 4, false };
 Type *type_void = &(Type){KIND_VOID, 0, 0, false};
 Type *type_bool = &(Type){KIND_BOOL, 1, 1, true};
 Type *type_char = &(Type){KIND_CHAR, 1, 1, false};
@@ -177,9 +200,6 @@ static Node *ast_lvar(Type *ty, char *name) {
         map_put(localenv, name, r);
     if (localvars)
         vec_push(localvars, r);
-    // while (r->ty->kind == KIND_REF) {
-    //     r = ast_uop(AST_DEREF, r->ty->ptr, r);
-    // }
     return r;
 }
 
@@ -234,14 +254,6 @@ static Node *ast_string(int enc, char *str, int len) {
 }
 
 static Node *ast_funcall(Type *ftype, char *fname, Vector *args) {
-    while (vec_len(ftype->params) > vec_len(args)) {
-        Type *arg = vec_get(ftype->params, vec_len(args));
-        if (!arg || !arg->initnode) {
-            // error("need more args for function: %s\n", fname);
-            break;
-        }
-        vec_push(args, arg->initnode);
-    }
     return make_ast(&(Node){
         .kind = AST_FUNCALL,
         .ty = ftype->rettype,
@@ -283,15 +295,6 @@ static Node *ast_init(Node *val, Type *totype, int off) {
 }
 
 static Node *ast_conv(Type *totype, Node *val) {
-    if (val->ty->kind == KIND_REF && totype->kind == KIND_REF) {
-        return val;
-    }
-    if (val->ty->kind == KIND_REF) {
-        val = ast_uop(AST_DEREF, val->ty->ptr, val);
-    }
-    if (totype->kind == KIND_REF) {
-        val = ast_uop(AST_ADDR, make_ptr_type(val->ty), val);
-    }
     return make_ast(&(Node){AST_CONV, totype, .operand = val});
 }
 
@@ -384,10 +387,6 @@ static Type *make_ptr_type(Type *ty) {
     return make_type(&(Type){KIND_PTR, .ptr = ty, .size = 1, .align = 1});
 }
 
-static Type *make_ref_type(Type *ty) {
-    return make_type(&(Type){KIND_REF, .ptr = ty, .size = 1, .align = 1});
-}
-
 static Type *make_array_type(Type *ty, int len) {
     int size;
     if (len < 0)
@@ -462,9 +461,10 @@ static void ensure_lvalue(Node *node) {
         case AST_GVAR:
         case AST_DEREF:
         case AST_STRUCT_REF:
+            return;
         case AST_CONV:
         case OP_CAST:
-            return;
+            return ensure_lvalue(node->operand);
         default:
             error("lvalue expected, but got %s", node2s(node));
     }
@@ -557,9 +557,6 @@ static Node *conv(Node *node) {
         case KIND_INT:
             if (ty->bitsize > 0)
                 return ast_conv(type_int, node);
-            break;
-        case KIND_REF:
-            return ast_conv(ty->ptr, node);
     }
     return node;
 }
@@ -590,7 +587,7 @@ static Type *usual_arith_conv(Type *t, Type *u) {
     assert(is_inttype(u) && u->size >= type_int->size);
     if (t->size > u->size)
         return t;
-    assert(t->size == u->size);
+    // assert(t->size == u->size);
     if (t->usig == u->usig)
         return t;
     Type *r = copy_type(t);
@@ -660,25 +657,11 @@ static bool is_same_struct(Type *a, Type *b) {
 }
 
 static void ensure_assignable(Type *totype, Type *fromtype) {
-    int toref = totype->kind == KIND_REF;
-    if (toref) {
-        totype = totype->ptr;
-    }
-    int fromref = fromtype->kind == KIND_REF;
-    if (fromref) {
-        fromtype = fromtype->ptr;
-    }
     if ((is_arithtype(totype) || totype->kind == KIND_PTR) &&
         (is_arithtype(fromtype) || fromtype->kind == KIND_PTR))
         return;
     if (is_same_struct(totype, fromtype))
         return;
-    if (toref && fromtype->kind == KIND_PTR) {
-        error("incompatible kind: <%s> <%s> (hint: use `*` on the value)", ty2s(totype), ty2s(fromtype));
-    }
-    if (fromref && fromtype->kind == KIND_PTR) {
-        error("incompatible kind: <%s> <%s> (hint: use `&` on the value)", ty2s(totype), ty2s(fromtype));
-    }
     error("incompatible kind: <%s> <%s>", ty2s(totype), ty2s(fromtype));
 }
 
@@ -831,7 +814,7 @@ static Node *read_float(Token *tok) {
         return ast_floattype(type_float, v);
     if (*end != '\0')
         errort(tok, "invalid character '%c': %s", *end, s);
-    return ast_floattype(type_float, v);
+    return ast_floattype(type_double, v);
 }
 
 static Node *read_number(Token *tok) {
@@ -860,7 +843,7 @@ static Node *read_sizeof_operand() {
     // Sizeof on void or function type is GNU extension
     int size = (ty->kind == KIND_VOID || ty->kind == KIND_FUNC) ? 1 : ty->size;
     assert(0 <= size);
-    return ast_inttype(type_int, size);
+    return ast_inttype(type_ulong, size);
 }
 
 /*
@@ -1000,9 +983,6 @@ static Node *read_var_or_func(char *name) {
         warnt(tok, "assume returning int: %s()", name);
         return ast_funcdesg(ty, name);
     }
-    if (v->ty->kind == KIND_REF) {
-        v = ast_uop(AST_DEREF, v->ty->ptr, v);
-    }
     if (v->ty->kind == KIND_FUNC)
         return ast_funcdesg(v->ty, name);
     return v;
@@ -1108,9 +1088,6 @@ static Node *read_subscript_expr(Node *node) {
 static Node *read_postfix_expr_tail(Node *node) {
     if (!node) return NULL;
     for (;;) {
-        if (node->ty->kind == KIND_REF) {
-            node = ast_uop(AST_DEREF, node->ty->ptr, node);
-        }
         if (next_token('(')) {
             Token *tok = peek();
             node = conv(node);
@@ -1139,8 +1116,8 @@ static Node *read_postfix_expr_tail(Node *node) {
         Token *tok = peek();
         if (next_token(OP_INC) || next_token(OP_DEC)) {
             ensure_lvalue(node);
-            int off = is_keyword(tok, OP_INC) ? 1 : -1;
-            return ast_binop(node->ty, OP_IPADD, node, ast_inttype(type_int, off));
+            int op = is_keyword(tok, OP_INC) ? OP_POST_INC : OP_POST_DEC;
+            return ast_uop(op, node->ty, node);
         }
         return node;
     }
@@ -1151,14 +1128,11 @@ static Node *read_postfix_expr() {
     return read_postfix_expr_tail(node);
 }
 
-static Node *read_unary_incdec(int n) {
-    Node *node = read_unary_expr();
-    node = conv(node);
-    ensure_lvalue(node);
-    Node *tostore = ast_binop(node->ty, '+', node, ast_inttype(node->ty, n));
-    Node *store = ast_binop(node->ty, '=', node, tostore);
-    // return ast_binop(node->ty, '-', store, ast_inttype(node->ty, n));
-    return store;
+static Node *read_unary_incdec(int op) {
+    Node *operand = read_unary_expr();
+    operand = conv(operand);
+    ensure_lvalue(operand);
+    return ast_uop(op, operand->ty, operand);
 }
 
 static Node *read_label_addr(Token *tok) {
@@ -1220,9 +1194,9 @@ static Node *read_unary_expr() {
             case KALIGNOF:
                 return read_alignof_operand();
             case OP_INC:
-                return read_unary_incdec(1);
+                return read_unary_incdec(OP_PRE_INC);
             case OP_DEC:
-                return read_unary_incdec(-1);
+                return read_unary_incdec(OP_PRE_DEC);
             case OP_LOGAND:
                 return read_label_addr(tok);
             case '&':
@@ -1977,9 +1951,6 @@ static void read_declarator_params(Vector *types, Vector *vars, bool *ellipsis) 
         char *name;
         Type *ty = read_func_param(&name, typeonly);
         ensure_not_void(ty);
-        if (next_token('=')) {
-            ty->initnode = read_logand_expr();
-        }
         vec_push(types, ty);
         if (!typeonly)
             vec_push(vars, ast_lvar(ty, name));
@@ -2092,10 +2063,6 @@ static Type *read_declarator(char **rname, Type *basety, Vector *params, int ctx
         expect(')');
         *stub = *read_declarator_tail(basety, params);
         return t;
-    }
-    if (next_token('&')) {
-        skip_type_qualifiers();
-        return read_declarator(rname, make_ref_type(basety), params, ctx);
     }
     if (next_token('*')) {
         skip_type_qualifiers();
@@ -2821,9 +2788,8 @@ static Node *read_continue_stmt(Token *tok) {
 static Node *read_return_stmt() {
     Node *retval = read_expr_opt();
     expect(';');
-    if (retval) {
+    if (retval)
         return ast_return(ast_conv(current_func_type->rettype, retval));
-    }
     return ast_return(NULL);
 }
 

@@ -135,7 +135,7 @@ int main(int argc, char **argv) {
             }
             fclose(file);
             vec_push(asmbufs, asmbuf->body);
-        // } else if (!strcmp(ext, ".c") || !strcmp(ext, ".h") || !strcmp(ext, ".i")) {
+            // } else if (!strcmp(ext, ".c") || !strcmp(ext, ".h") || !strcmp(ext, ".i")) {
         } else if (!strcmp(ext, ".c") || !strcmp(ext, ".h") || !strcmp(ext, ".i") || !strcmp(infile, "/dev/stdin")) {
             lex_init(infile);
             cpp_init();

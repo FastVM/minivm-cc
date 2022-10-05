@@ -17,7 +17,8 @@ void errorf(char *line, char *pos, char *fmt, ...) {
     va_start(args, fmt);
     print_error(line, pos, "ERROR", fmt, args);
     va_end(args);
-    exit(1);
+    __builtin_trap();
+    // exit(1);
 }
 
 void warnf(char *line, char *pos, char *fmt, ...) {

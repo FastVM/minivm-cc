@@ -1,33 +1,33 @@
 /*******************************************************************************
-*
-* A minimal Forth compiler in C
-* By Leif Bruder <leifbruder@gmail.com> http://defineanswer42.wordpress.com
-* Release 2014-04-04
-*
-* Based on Richard W.M. Jones' excellent Jonesforth sources/tutorial
-*
-* PUBLIC DOMAIN
-*
-* I, the copyright holder of this work, hereby release it into the public
-* domain. This applies worldwide. In case this is not legally possible, I grant
-* any entity the right to use this work for any purpose, without any conditions,
-* unless such conditions are required by law.
-*
-*******************************************************************************/
+ *
+ * A minimal Forth compiler in C
+ * By Leif Bruder <leifbruder@gmail.com> http://defineanswer42.wordpress.com
+ * Release 2014-04-04
+ *
+ * Based on Richard W.M. Jones' excellent Jonesforth sources/tutorial
+ *
+ * PUBLIC DOMAIN
+ *
+ * I, the copyright holder of this work, hereby release it into the public
+ * domain. This applies worldwide. In case this is not legally possible, I grant
+ * any entity the right to use this work for any purpose, without any conditions,
+ * unless such conditions are required by law.
+ *
+ *******************************************************************************/
 
 /* Only a single include here; I'll define everything on the fly to keep
-* dependencies as low as possible. In this file, the only C standard functions
-* used are getchar, putchar and the EOF value. */
-#include <stdio.h>
+ * dependencies as low as possible. In this file, the only C standard functions
+ * used are getchar, putchar and the EOF value. */
 #include <stddef.h>
+#include <stdio.h>
 
 /* Base cell data types. Use short/long on most systems for 16 bit cells. */
 /* Experiment here if necessary. */
 
 /* Basic memory configuration */
-#define MEM_SIZE 65536 /* main memory size in bytes */
-#define STACK_SIZE 192 /* cells reserved for the stack */
-#define RSTACK_SIZE 64 /* cells reserved for the return stack */
+#define MEM_SIZE 65536     /* main memory size in bytes */
+#define STACK_SIZE 192     /* cells reserved for the stack */
+#define RSTACK_SIZE 64     /* cells reserved for the return stack */
 #define INPUT_LINE_SIZE 80 /* bytes reserved for the WORD buffer */
 
 /******************************************************************************/
@@ -54,7 +54,7 @@ typedef unsigned char byte;
 #define MASK_NAMELENGTH 0x1F
 
 /* This is the main memory to be used by this Forth. There will be no malloc
-* in this file. */
+ * in this file. */
 byte memory[MEM_SIZE];
 
 /* Pointers to Forth variables stored inside the main memory array */
@@ -82,16 +82,20 @@ int charsInLineBuffer = 0;
 int positionInLineBuffer = 0;
 
 /* A basic setup for defining builtins. This Forth uses impossibly low
-* adresses as IDs for the builtins so we can define builtins as
-* standard C functions. Slower but easier to port. */
-#define BUILTIN(id, name, c_name, flags) const int c_name##_id=id; const char *c_name##_name=name; const byte c_name##_flags=flags; void c_name(void)
+ * adresses as IDs for the builtins so we can define builtins as
+ * standard C functions. Slower but easier to port. */
+#define BUILTIN(id, name, c_name, flags) \
+    const int c_name##_id = id;          \
+    const char *c_name##_name = name;    \
+    const byte c_name##_flags = flags;   \
+    void c_name(void)
 #define ADD_BUILTIN(c_name) addBuiltin(c_name##_id, c_name##_name, c_name##_flags, c_name)
-typedef void(*builtin)(void);
+typedef void (*builtin)(void);
 builtin builtins[MAX_BUILTIN_ID];
 
 /* This is our initialization script containing all the words we define in
-* Forth for convenience. Focus is on simplicity, not speed. Partly copied from
-* Jonesforth (see top of file). */
+ * Forth for convenience. Focus is on simplicity, not speed. Partly copied from
+ * Jonesforth (see top of file). */
 const char *initscript_pos;
 const char *initScript =
     ": DECIMAL 10 BASE ! ;\n"
@@ -135,7 +139,7 @@ const char *initScript =
     ": DOCOL 0 ;\n"
     ": CONSTANT CREATE DOCOL , ' LIT , , ' EXIT , ;\n"
     ": 2CONSTANT SWAP CREATE DOCOL , ' LIT , , ' LIT , , ' EXIT , ;\n"
-    ": VARIABLE HERE @ CELL ALLOT CREATE DOCOL , ' LIT , , ' EXIT , ;\n" /* TODO: Allot AFTER the code, not before */
+    ": VARIABLE HERE @ CELL ALLOT CREATE DOCOL , ' LIT , , ' EXIT , ;\n"     /* TODO: Allot AFTER the code, not before */
     ": 2VARIABLE HERE @ 2 CELLS ALLOT CREATE DOCOL , ' LIT , , ' EXIT , ;\n" /* TODO: Allot AFTER the code, not before */
     ": IF ' 0BRANCH , HERE @ 0 , ; IMMEDIATE\n"
     ": THEN DUP HERE @ SWAP - SWAP ! ; IMMEDIATE\n"
@@ -173,44 +177,38 @@ const char *initScript =
     ": MAX 2DUP > IF DROP ELSE NIP THEN ;\n"
     ": D0= OR 0= ;\n"
     ": DMIN 2OVER 2OVER D< IF 2DROP ELSE 2NIP THEN ;\n"
-    ": DMAX 2OVER 2OVER D> IF 2DROP ELSE 2NIP THEN ;\n"
-    ;
+    ": DMAX 2OVER 2OVER D> IF 2DROP ELSE 2NIP THEN ;\n";
 
 /******************************************************************************/
 
 /* The primary data output function. This is the place to change if you want
-* to e.g. output data on a microcontroller via a serial interface. */
-void putkey(char c)
-{
+ * to e.g. output data on a microcontroller via a serial interface. */
+void putkey(char c) {
     putchar(c);
 }
 
 /* The primary data input function. This is where you place the code to e.g.
-* read from a serial line. */
-int llkey(void)
-{
+ * read from a serial line. */
+int llkey(void) {
     if (initscript_pos && *initscript_pos) return *(initscript_pos++);
     return getchar();
 }
 
 /* Anything waiting in the keyboard buffer? */
-int keyWaiting(void)
-{
+int keyWaiting(void) {
     return positionInLineBuffer < charsInLineBuffer ? -1 : 0;
 }
 
 /* Line buffered character input. We're duplicating the functionality of the
-* stdio library here to make the code easier to port to other input sources */
-int getkey(void)
-{
+ * stdio library here to make the code easier to port to other input sources */
+int getkey(void) {
     int c;
 
     if (keyWaiting())
         return lineBuffer[positionInLineBuffer++];
 
     charsInLineBuffer = 0;
-    while ((c = llkey()) != EOF)
-    {
+    while ((c = llkey()) != EOF) {
         if (charsInLineBuffer == sizeof(lineBuffer)) break;
         lineBuffer[charsInLineBuffer++] = c;
         if (c == '\n') break;
@@ -221,18 +219,15 @@ int getkey(void)
 }
 
 /* C string output */
-void tell(const char *str)
-{
+void tell(const char *str) {
     while (*str)
         putkey(*str++);
 }
 
 /* The basic (data) stack operations */
 
-cell pop()
-{
-    if (*sp == 1)
-    {
+cell pop() {
+    if (*sp == 1) {
         tell("? Stack underflow\n");
         errorFlag = 1;
         return 0;
@@ -240,21 +235,17 @@ cell pop()
     return stack[--(*sp)];
 }
 
-cell tos()
-{
-    if (*sp == 1)
-    {
+cell tos() {
+    if (*sp == 1) {
         tell("? Stack underflow\n");
         errorFlag = 1;
         return 0;
     }
-    return stack[(*sp)-1];
+    return stack[(*sp) - 1];
 }
 
-void push(cell data)
-{
-    if (*sp >= STACK_SIZE)
-    {
+void push(cell data) {
+    if (*sp >= STACK_SIZE) {
         tell("? Stack overflow\n");
         errorFlag = 1;
         return;
@@ -262,22 +253,18 @@ void push(cell data)
     stack[(*sp)++] = data;
 }
 
-cell dpop()
-{
+cell dpop() {
     return pop();
 }
 
-void dpush(cell data)
-{
+void dpush(cell data) {
     push(data);
 }
 
 /* The basic return stack operations */
 
-cell rpop()
-{
-    if (*rsp == 1)
-    {
+cell rpop() {
+    if (*rsp == 1) {
         tell("? RStack underflow\n");
         errorFlag = 1;
         return 0;
@@ -285,10 +272,8 @@ cell rpop()
     return rstack[--(*rsp)];
 }
 
-void rpush(cell data)
-{
-    if (*rsp >= RSTACK_SIZE)
-    {
+void rpush(cell data) {
+    if (*rsp >= RSTACK_SIZE) {
         tell("? RStack overflow\n");
         errorFlag = 1;
         return;
@@ -298,37 +283,31 @@ void rpush(cell data)
 
 /* Secure memory access */
 
-cell readMem(cell address)
-{
-    if (address > MEM_SIZE)
-    {
+cell readMem(cell address) {
+    if (address > MEM_SIZE) {
         tell("Internal error in readMem: Invalid addres\n");
         errorFlag = 1;
         return 0;
     }
-    return *((cell*)(memory + address));
+    return *((cell *)(memory + address));
 }
 
-void writeMem(cell address, cell value)
-{
-    if (address > MEM_SIZE)
-    {
+void writeMem(cell address, cell value) {
+    if (address > MEM_SIZE) {
         tell("Internal error in writeMem: Invalid address\n");
         errorFlag = 1;
         return;
     }
-    *((cell*)(memory + address)) = value;
+    *((cell *)(memory + address)) = value;
 }
 
 /* Reading a word into the input line buffer */
-byte readWord()
-{
-    char *line = (char*)memory;
+byte readWord() {
+    char *line = (char *)memory;
     byte len = 0;
     int c;
 
-    while ((c = getkey()) != EOF)
-    {
+    while ((c = getkey()) != EOF) {
         if (c == ' ') continue;
         if (c == '\n') continue;
         if (c != '\\') break;
@@ -338,8 +317,7 @@ byte readWord()
                 break;
     }
 
-    while (c != ' ' && c != '\n' && c != EOF)
-    {
+    while (c != ' ' && c != '\n' && c != EOF) {
         if (len >= (INPUT_LINE_SIZE - 1))
             break;
         line[++len] = c;
@@ -350,29 +328,24 @@ byte readWord()
 }
 
 /* toupper() clone so we don't have to pull in ctype.h */
-char up(char c)
-{
+char up(char c) {
     return (c >= 'a' && c <= 'z') ? c - 'a' + 'A' : c;
 }
 
 /* Dictionary lookup */
-cell findWord(cell address, cell len)
-{
+cell findWord(cell address, cell len) {
     cell ret = *latest;
-    char *name = (char*)&memory[address];
+    char *name = (char *)&memory[address];
     cell i;
     int found;
 
-    for (ret = *latest; ret; ret = readMem(ret))
-    {
+    for (ret = *latest; ret; ret = readMem(ret)) {
         if ((memory[ret + CELL_SIZE] & MASK_NAMELENGTH) != len) continue;
         if (memory[ret + CELL_SIZE] & FLAG_HIDDEN) continue;
 
         found = 1;
-        for (i = 0; i < len; i++)
-        {
-            if (up(memory[ret + i + 1 + CELL_SIZE]) != up(name[i]))
-            {
+        for (i = 0; i < len; i++) {
+            if (up(memory[ret + i + 1 + CELL_SIZE]) != up(name[i])) {
                 found = 0;
                 break;
             }
@@ -383,8 +356,7 @@ cell findWord(cell address, cell len)
 }
 
 /* Basic number parsing, base <= 36 only atm */
-void parseNumber(byte *word, cell len, cell *number, cell *notRead, byte *isDouble)
-{
+void parseNumber(byte *word, cell len, cell *number, cell *notRead, byte *isDouble) {
     int negative = 0;
     cell i;
     char c;
@@ -393,33 +365,34 @@ void parseNumber(byte *word, cell len, cell *number, cell *notRead, byte *isDoub
     *number = 0;
     *isDouble = 0;
 
-    if (len == 0)
-    {
+    if (len == 0) {
         *notRead = 0;
         return;
     }
 
-    if (word[0] == '-')
-    {
+    if (word[0] == '-') {
         negative = 1;
         len--;
         word++;
-    }
-    else if (word[0] == '+')
-    {
+    } else if (word[0] == '+') {
         len--;
         word++;
     }
 
-    for (i = 0; i < len; i++)
-    {
+    for (i = 0; i < len; i++) {
         c = *word;
         word++;
-        if (c == '.') { *isDouble = 1; continue; }
-        else if (c >= '0' && c <= '9') current = c - '0';
-        else if (c >= 'A' && c <= 'Z') current = 10 + c - 'A';
-        else if (c >= 'a' && c <= 'z') current = 10 + c - 'a';
-        else break;
+        if (c == '.') {
+            *isDouble = 1;
+            continue;
+        } else if (c >= '0' && c <= '9')
+            current = c - '0';
+        else if (c >= 'A' && c <= 'Z')
+            current = 10 + c - 'A';
+        else if (c >= 'a' && c <= 'z')
+            current = 10 + c - 'a';
+        else
+            break;
 
         if (current >= *base) break;
 
@@ -431,113 +404,102 @@ void parseNumber(byte *word, cell len, cell *number, cell *notRead, byte *isDoub
 }
 
 /*******************************************************************************
-*
-* Builtin definitions
-*
-*******************************************************************************/
+ *
+ * Builtin definitions
+ *
+ *******************************************************************************/
 
-BUILTIN(0, "RUNDOCOL", docol, 0)
-{
+BUILTIN(0, "RUNDOCOL", docol, 0) {
     rpush(lastIp);
     next = commandAddress + CELL_SIZE;
 }
 
 /* The first few builtins are very simple, not need to waste vertical space here */
-BUILTIN( 1, "CELL",      doCellSize,      0)              { push(CELL_SIZE); }
-BUILTIN( 2, "@",         memRead,         0)              { push(readMem(pop())); }
-BUILTIN( 3, "C@",        memReadByte,     0)              { push(memory[pop()]); }
-BUILTIN( 4, "KEY",       key,             0)              { push(getkey()); }
-BUILTIN( 5, "EMIT",      emit,            0)              { putkey(pop() & 255); }
-BUILTIN( 6, "DROP",      drop,            0)              { pop(); }
-BUILTIN( 7, "EXIT",      doExit,          0)              { next = rpop(); }
-BUILTIN( 8, "BYE",       bye,             0)              { exitReq = 1; }
-BUILTIN( 9, "LATEST",    doLatest,        0)              { push(LATEST_POSITION); }
-BUILTIN(10, "HERE",      doHere,          0)              { push(HERE_POSITION); }
-BUILTIN(11, "BASE",      doBase,          0)              { push(BASE_POSITION); }
-BUILTIN(12, "STATE",     doState,         0)              { push(STATE_POSITION); }
-BUILTIN(13, "[",         gotoInterpreter, FLAG_IMMEDIATE) { *state = 0; }
-BUILTIN(14, "]",         gotoCompiler,    0)              { *state = 1; }
-BUILTIN(15, "HIDE",      hide,            0)              { memory[*latest + CELL_SIZE] ^= FLAG_HIDDEN; }
-BUILTIN(16, "R>",        rtos,            0)              { push(rpop()); }
-BUILTIN(17, ">R",        stor,            0)              { rpush(pop()); }
-BUILTIN(18, "KEY?",      key_p,           0)              { push(keyWaiting()); }
-BUILTIN(19, "BRANCH",    branch,          0)              { next += readMem(next); }
-BUILTIN(20, "0BRANCH",   zbranch,         0)              { next += pop() ? CELL_SIZE : readMem(next); }
+BUILTIN(1, "CELL", doCellSize, 0) { push(CELL_SIZE); }
+BUILTIN(2, "@", memRead, 0) { push(readMem(pop())); }
+BUILTIN(3, "C@", memReadByte, 0) { push(memory[pop()]); }
+BUILTIN(4, "KEY", key, 0) { push(getkey()); }
+BUILTIN(5, "EMIT", emit, 0) { putkey(pop() & 255); }
+BUILTIN(6, "DROP", drop, 0) { pop(); }
+BUILTIN(7, "EXIT", doExit, 0) { next = rpop(); }
+BUILTIN(8, "BYE", bye, 0) { exitReq = 1; }
+BUILTIN(9, "LATEST", doLatest, 0) { push(LATEST_POSITION); }
+BUILTIN(10, "HERE", doHere, 0) { push(HERE_POSITION); }
+BUILTIN(11, "BASE", doBase, 0) { push(BASE_POSITION); }
+BUILTIN(12, "STATE", doState, 0) { push(STATE_POSITION); }
+BUILTIN(13, "[", gotoInterpreter, FLAG_IMMEDIATE) { *state = 0; }
+BUILTIN(14, "]", gotoCompiler, 0) { *state = 1; }
+BUILTIN(15, "HIDE", hide, 0) { memory[*latest + CELL_SIZE] ^= FLAG_HIDDEN; }
+BUILTIN(16, "R>", rtos, 0) { push(rpop()); }
+BUILTIN(17, ">R", stor, 0) { rpush(pop()); }
+BUILTIN(18, "KEY?", key_p, 0) { push(keyWaiting()); }
+BUILTIN(19, "BRANCH", branch, 0) { next += readMem(next); }
+BUILTIN(20, "0BRANCH", zbranch, 0) { next += pop() ? CELL_SIZE : readMem(next); }
 BUILTIN(21, "IMMEDIATE", toggleImmediate, FLAG_IMMEDIATE) { memory[*latest + CELL_SIZE] ^= FLAG_IMMEDIATE; }
-BUILTIN(22, "FREE",      doFree,          0)              { push(MEM_SIZE - *here); }
-BUILTIN(23, "S0@",       s0_r,            0)              { push(STACK_POSITION + CELL_SIZE); }
-BUILTIN(24, "DSP@",      dsp_r,           0)              { push(STACK_POSITION + *sp * CELL_SIZE); }
-BUILTIN(25, "NOT",       not,             0)              { push(~pop()); }
-BUILTIN(26, "DUP",       dup,             0)              { push(tos()); }
+BUILTIN(22, "FREE", doFree, 0) { push(MEM_SIZE - *here); }
+BUILTIN(23, "S0@", s0_r, 0) { push(STACK_POSITION + CELL_SIZE); }
+BUILTIN(24, "DSP@", dsp_r, 0) { push(STACK_POSITION + *sp * CELL_SIZE); }
+BUILTIN(25, "NOT", not, 0) { push(~pop()); }
+BUILTIN(26, "DUP", dup, 0) { push(tos()); }
 
-BUILTIN(27, "!", memWrite, 0)
-{
+BUILTIN(27, "!", memWrite, 0) {
     cell address = pop();
     cell value = pop();
     writeMem(address, value);
 }
 
-BUILTIN(28, "C!", memWriteByte, 0)
-{
+BUILTIN(28, "C!", memWriteByte, 0) {
     cell address = pop();
     cell value = pop();
     memory[address] = value & 255;
 }
 
-BUILTIN(29, "SWAP", swap, 0)
-{
+BUILTIN(29, "SWAP", swap, 0) {
     cell a = pop();
     cell b = pop();
     push(a);
     push(b);
 }
 
-BUILTIN(30, "OVER", over, 0)
-{
+BUILTIN(30, "OVER", over, 0) {
     cell a = pop();
     cell b = tos();
     push(a);
     push(b);
 }
 
-BUILTIN(31, ",", comma, 0)
-{
+BUILTIN(31, ",", comma, 0) {
     push(*here);
     memWrite();
     *here += CELL_SIZE;
 }
 
-BUILTIN(32, "C,", commaByte, 0)
-{
+BUILTIN(32, "C,", commaByte, 0) {
     push(*here);
     memWriteByte();
     *here += sizeof(byte);
 }
 
-BUILTIN(33, "WORD", word, 0)
-{
+BUILTIN(33, "WORD", word, 0) {
     byte len = readWord();
     push(1);
     push(len);
 }
 
-BUILTIN(34, "FIND", find, 0)
-{
+BUILTIN(34, "FIND", find, 0) {
     cell len = pop();
     cell address = pop();
     cell ret = findWord(address, len);
     push(ret);
 }
 
-cell getCfa(cell address)
-{
+cell getCfa(cell address) {
     byte len = (memory[address + CELL_SIZE] & MASK_NAMELENGTH) + 1;
-    while ((len & (CELL_SIZE-1)) != 0) len++;
+    while ((len & (CELL_SIZE - 1)) != 0) len++;
     return address + CELL_SIZE + len;
 }
 
-BUILTIN(35, ">CFA", cfa, 0)
-{
+BUILTIN(35, ">CFA", cfa, 0) {
     cell address = pop();
     cell ret = getCfa(address);
     if (ret < maxBuiltinAddress)
@@ -546,27 +508,27 @@ BUILTIN(35, ">CFA", cfa, 0)
         push(ret);
 }
 
-BUILTIN(36, "NUMBER", number, 0)
-{
+BUILTIN(36, "NUMBER", number, 0) {
     cell num;
     cell notRead;
     byte isDouble;
     cell len = pop();
-    byte* address = &memory[pop()];
+    byte *address = &memory[pop()];
     parseNumber(address, len, &num, &notRead, &isDouble);
-    if (isDouble) dpush(num); else push((cell)num);
+    if (isDouble)
+        dpush(num);
+    else
+        push((cell)num);
     push(notRead);
 }
 
-BUILTIN(37, "LIT", lit, 0)
-{
+BUILTIN(37, "LIT", lit, 0) {
     push(readMem(next));
     next += CELL_SIZE;
 }
 
 /* Outer and inner interpreter, TODO split up */
-BUILTIN(38, "QUIT", quit, 0)
-{
+BUILTIN(38, "QUIT", quit, 0) {
     cell address;
     cell number;
     cell notRead;
@@ -577,8 +539,7 @@ BUILTIN(38, "QUIT", quit, 0)
 
     int immediate;
 
-    for (exitReq = 0; exitReq == 0;)
-    {
+    for (exitReq = 0; exitReq == 0;) {
         lastIp = next = quit_address;
         errorFlag = 0;
 
@@ -586,27 +547,23 @@ BUILTIN(38, "QUIT", quit, 0)
         find();
 
         address = pop();
-        if (address)
-        {
+        if (address) {
             immediate = (memory[address + CELL_SIZE] & FLAG_IMMEDIATE);
             commandAddress = getCfa(address);
             command = readMem(commandAddress);
-            if (*state && !immediate)
-            {
+            if (*state && !immediate) {
                 if (command < MAX_BUILTIN_ID && command != docol_id)
                     push(command);
                 else
                     push(commandAddress);
                 comma();
-            }
-            else
-            {
-                while (!errorFlag && !exitReq)
-                {
-                    if (command == quit_id) break;
-                    else if (command < MAX_BUILTIN_ID) builtins[command]();
-                    else
-                    {
+            } else {
+                while (!errorFlag && !exitReq) {
+                    if (command == quit_id)
+                        break;
+                    else if (command < MAX_BUILTIN_ID)
+                        builtins[command]();
+                    else {
                         lastIp = next;
                         next = command;
                     }
@@ -616,26 +573,19 @@ BUILTIN(38, "QUIT", quit, 0)
                     next += CELL_SIZE;
                 }
             }
-        }
-        else
-        {
+        } else {
             parseNumber(&memory[1], memory[0], &number, &notRead, &isDouble);
-            if (notRead)
-            {
+            if (notRead) {
                 tell("Unknown word: ");
-                for (i=0; i<memory[0]; i++)
-                    putkey(memory[i+1]);
+                for (i = 0; i < memory[0]; i++)
+                    putkey(memory[i + 1]);
                 putkey('\n');
 
                 *sp = *rsp = 1;
                 continue;
-            }
-            else
-            {
-                if (*state)
-                {
-                    if (isDouble)
-                    {
+            } else {
+                if (*state) {
+                    if (isDouble) {
                         push(lit_id);
                         comma();
                         push(number);
@@ -644,18 +594,17 @@ BUILTIN(38, "QUIT", quit, 0)
                         // comma();
                         // push(tmp[1]);
                         // comma();
-                    }
-                    else
-                    {
+                    } else {
                         push(lit_id);
                         comma();
                         push((cell)number);
                         comma();
                     }
-                }
-                else
-                {
-                    if (isDouble) dpush(number); else push((cell)number);
+                } else {
+                    if (isDouble)
+                        dpush(number);
+                    else
+                        push((cell)number);
                 }
             }
         }
@@ -667,37 +616,32 @@ BUILTIN(38, "QUIT", quit, 0)
     }
 }
 
-BUILTIN(39, "+", plus, 0)
-{
+BUILTIN(39, "+", plus, 0) {
     scell n1 = pop();
     scell n2 = pop();
     push(n1 + n2);
 }
 
-BUILTIN(40, "-", minus, 0)
-{
+BUILTIN(40, "-", minus, 0) {
     scell n1 = pop();
     scell n2 = pop();
     push(n2 - n1);
 }
 
-BUILTIN(41, "*", mul, 0)
-{
+BUILTIN(41, "*", mul, 0) {
     scell n1 = pop();
     scell n2 = pop();
     push(n1 * n2);
 }
 
-BUILTIN(42, "/MOD", divmod, 0)
-{
+BUILTIN(42, "/MOD", divmod, 0) {
     scell n1 = pop();
     scell n2 = pop();
     push(n2 % n1);
     push(n2 / n1);
 }
 
-BUILTIN(43, "ROT", rot, 0)
-{
+BUILTIN(43, "ROT", rot, 0) {
     cell a = pop();
     cell b = pop();
     cell c = pop();
@@ -706,19 +650,17 @@ BUILTIN(43, "ROT", rot, 0)
     push(c);
 }
 
-void createWord(const char* name, byte len, byte flags);
-BUILTIN(44, "CREATE", doCreate, 0)
-{
+void createWord(const char *name, byte len, byte flags);
+BUILTIN(44, "CREATE", doCreate, 0) {
     byte len;
     cell address;
     word();
     len = pop() & 255;
     address = pop();
-    createWord((char*)&memory[address], len, 0);
+    createWord((char *)&memory[address], len, 0);
 }
 
-BUILTIN(45, ":", colon, 0)
-{
+BUILTIN(45, ":", colon, 0) {
     doCreate();
     push(docol_id);
     comma();
@@ -726,23 +668,20 @@ BUILTIN(45, ":", colon, 0)
     *state = 1;
 }
 
-BUILTIN(46, ";", semicolon, FLAG_IMMEDIATE)
-{
+BUILTIN(46, ";", semicolon, FLAG_IMMEDIATE) {
     push(doExit_id);
     comma();
     hide();
     *state = 0;
 }
 
-BUILTIN(47, "R@", rget, 0)
-{
+BUILTIN(47, "R@", rget, 0) {
     cell tmp = rpop();
     rpush(tmp);
     push(tmp);
 }
 
-BUILTIN(48, "J", doJ, 0)
-{
+BUILTIN(48, "J", doJ, 0) {
     cell tmp1 = rpop();
     cell tmp2 = rpop();
     cell tmp3 = rpop();
@@ -752,95 +691,82 @@ BUILTIN(48, "J", doJ, 0)
     push(tmp3);
 }
 
-BUILTIN(49, "'", tick, FLAG_IMMEDIATE)
-{
+BUILTIN(49, "'", tick, FLAG_IMMEDIATE) {
     word();
     find();
     cfa();
 
-    if (*state)
-    {
+    if (*state) {
         push(lit_id);
         comma();
         comma();
     }
 }
 
-BUILTIN(50, "=", equals, 0)
-{
+BUILTIN(50, "=", equals, 0) {
     cell a1 = pop();
     cell a2 = pop();
     push(a2 == a1 ? -1 : 0);
 }
 
-BUILTIN(51, "<", smaller, 0)
-{
+BUILTIN(51, "<", smaller, 0) {
     scell a1 = pop();
     scell a2 = pop();
     push(a2 < a1 ? -1 : 0);
 }
 
-BUILTIN(52, ">", larger, 0)
-{
+BUILTIN(52, ">", larger, 0) {
     scell a1 = pop();
     scell a2 = pop();
     push(a2 > a1 ? -1 : 0);
 }
 
-BUILTIN(53, "AND", doAnd, 0)
-{
+BUILTIN(53, "AND", doAnd, 0) {
     cell a1 = pop();
     cell a2 = pop();
     push(a2 & a1);
 }
 
-BUILTIN(54, "OR", doOr, 0)
-{
+BUILTIN(54, "OR", doOr, 0) {
     cell a1 = pop();
     cell a2 = pop();
     push(a2 | a1);
 }
 
-BUILTIN(55, "?DUP", p_dup, 0)
-{
+BUILTIN(55, "?DUP", p_dup, 0) {
     cell a = tos();
     if (a) push(a);
 }
 
-BUILTIN(56, "LITSTRING", litstring, 0)
-{
+BUILTIN(56, "LITSTRING", litstring, 0) {
     cell length = readMem(next);
     next += CELL_SIZE;
     push(next);
     push(length);
     next += length;
-    while (next & (CELL_SIZE-1))
+    while (next & (CELL_SIZE - 1))
         next++;
 }
 
-BUILTIN(57, "XOR", xor, 0)
-{
+BUILTIN(57, "XOR", xor, 0) {
     cell a = pop();
     cell b = pop();
     push(a ^ b);
 }
 
-BUILTIN(58, "*/", timesDivide, 0)
-{
+BUILTIN(58, "*/", timesDivide, 0) {
     cell n3 = pop();
     cell n2 = pop();
     cell n1 = pop();
     cell r = (n1 * n2) / n3;
     push((cell)r);
-    if ((cell)r != r)
-    {
+    if ((cell)r != r) {
         tell("Arithmetic overflow\n");
         errorFlag = 1;
     }
 }
 
-BUILTIN(59, "*/MOD", timesDivideMod, 0)
-{
+BUILTIN(59, "*/MOD", timesDivideMod, 0) {
     cell n3 = pop();
     cell n2 = pop();
     cell n1 = pop();
@@ -848,79 +774,68 @@ BUILTIN(59, "*/MOD", timesDivideMod, 0)
     cell m = (n1 * n2) % n3;
     push((cell)m);
     push((cell)r);
-    if ((cell)r != r)
-    {
+    if ((cell)r != r) {
         tell("Arithmetic overflow\n");
         errorFlag = 1;
     }
 }
 
-BUILTIN(60, "D=", dequals, 0)
-{
+BUILTIN(60, "D=", dequals, 0) {
     cell a1 = dpop();
     cell a2 = dpop();
     push(a2 == a1 ? -1 : 0);
 }
 
-BUILTIN(61, "D<", dsmaller, 0)
-{
+BUILTIN(61, "D<", dsmaller, 0) {
     scell a1 = dpop();
     scell a2 = dpop();
     push(a2 < a1 ? -1 : 0);
 }
 
-BUILTIN(62, "D>", dlarger, 0)
-{
+BUILTIN(62, "D>", dlarger, 0) {
     scell a1 = dpop();
     scell a2 = dpop();
     push(a2 > a1 ? -1 : 0);
 }
 
-BUILTIN(63, "DU<", dusmaller, 0)
-{
+BUILTIN(63, "DU<", dusmaller, 0) {
     cell a1 = dpop();
     cell a2 = dpop();
     push(a2 < a1 ? -1 : 0);
 }
 
-BUILTIN(64, "D+", dplus, 0)
-{
+BUILTIN(64, "D+", dplus, 0) {
     scell n1 = dpop();
     scell n2 = dpop();
     dpush(n1 + n2);
 }
 
-BUILTIN(65, "D-", dminus, 0)
-{
+BUILTIN(65, "D-", dminus, 0) {
     scell n1 = dpop();
     scell n2 = dpop();
     dpush(n2 - n1);
 }
 
-BUILTIN(66, "D*", dmul, 0)
-{
+BUILTIN(66, "D*", dmul, 0) {
     scell n1 = dpop();
     scell n2 = dpop();
     dpush(n1 * n2);
 }
 
-BUILTIN(67, "D/", ddiv, 0)
-{
+BUILTIN(67, "D/", ddiv, 0) {
     scell n1 = dpop();
     scell n2 = dpop();
     dpush(n2 / n1);
 }
 
-BUILTIN(68, "2SWAP", dswap, 0)
-{
+BUILTIN(68, "2SWAP", dswap, 0) {
     cell a = dpop();
     cell b = dpop();
     dpush(a);
     dpush(b);
 }
 
-BUILTIN(69, "2OVER", dover, 0)
-{
+BUILTIN(69, "2OVER", dover, 0) {
     cell a = dpop();
     cell b = dpop();
     dpush(b);
@@ -928,8 +843,7 @@ BUILTIN(69, "2OVER", dover, 0)
     dpush(b);
 }
 
-BUILTIN(70, "2ROT", drot, 0)
-{
+BUILTIN(70, "2ROT", drot, 0) {
     cell a = dpop();
     cell b = dpop();
     cell c = dpop();
@@ -939,27 +853,24 @@ BUILTIN(70, "2ROT", drot, 0)
 }
 
 /*******************************************************************************
-*
-* Loose ends
-*
-*******************************************************************************/
+ *
+ * Loose ends
+ *
+ *******************************************************************************/
 
 /* Create a word in the dictionary */
-void createWord(const char* name, byte len, byte flags)
-{
+void createWord(const char *name, byte len, byte flags) {
     cell newLatest = *here;
     push(*latest);
     comma();
     push(len | flags);
     commaByte();
-    while (len--)
-    {
+    while (len--) {
         push(*name);
         commaByte();
         name++;
     }
-    while (*here & (CELL_SIZE-1))
-    {
+    while (*here & (CELL_SIZE - 1)) {
         push(0);
         commaByte();
     }
@@ -967,20 +878,17 @@ void createWord(const char* name, byte len, byte flags)
 }
 
 /* A simple strlen clone so we don't have to pull in string.h */
-byte slen(const char *str)
-{
+byte slen(const char *str) {
     byte ret = 0;
     while (*str++) ret++;
     return ret;
 }
 
 /* Add a builtin to the dictionary */
-void addBuiltin(cell code, const char* name, const byte flags, builtin f)
-{
+void addBuiltin(cell code, const char *name, const byte flags, builtin f) {
     if (errorFlag) return;
 
-    if (code >= MAX_BUILTIN_ID)
-    {
+    if (code >= MAX_BUILTIN_ID) {
         tell("Error adding builtin ");
         tell(name);
         tell(": Out of builtin IDs\n");
@@ -997,18 +905,17 @@ void addBuiltin(cell code, const char* name, const byte flags, builtin f)
 }
 
 /* Program setup and jump to outer interpreter */
-int main()
-{
+int main() {
     errorFlag = 0;
 
-    state = (cell*)&memory[STATE_POSITION];
-    base = (cell*)&memory[BASE_POSITION];
-    latest = (cell*)&memory[LATEST_POSITION];
-    here = (cell*)&memory[HERE_POSITION];
-    sp = (cell*)&memory[STACK_POSITION];
-    stack = (cell*)&memory[STACK_POSITION + CELL_SIZE];
-    rsp = (cell*)&memory[RSTACK_POSITION];
-    rstack = (cell*)&memory[RSTACK_POSITION + CELL_SIZE];
+    state = (cell *)&memory[STATE_POSITION];
+    base = (cell *)&memory[BASE_POSITION];
+    latest = (cell *)&memory[LATEST_POSITION];
+    here = (cell *)&memory[HERE_POSITION];
+    sp = (cell *)&memory[STACK_POSITION];
+    stack = (cell *)&memory[STACK_POSITION + CELL_SIZE];
+    rsp = (cell *)&memory[RSTACK_POSITION];
+    rstack = (cell *)&memory[RSTACK_POSITION + CELL_SIZE];
 
     *sp = *rsp = 1;
     *state = 0;
@@ -1073,7 +980,7 @@ int main()
     ADD_BUILTIN(s0_r);
     ADD_BUILTIN(dsp_r);
     ADD_BUILTIN(litstring);
-    ADD_BUILTIN(not);
+    ADD_BUILTIN(not );
     ADD_BUILTIN(xor);
     ADD_BUILTIN(timesDivide);
     ADD_BUILTIN(timesDivideMod);
@@ -1093,7 +1000,7 @@ int main()
 
     if (errorFlag) return 1;
 
-    initscript_pos = (char*)initScript;
+    initscript_pos = (char *)initScript;
     quit();
     return 0;
 }

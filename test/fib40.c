@@ -1,5 +1,5 @@
 
-int putchar(int c);
+#include <stdio.h>
 
 int fib(int n) {
     if (n < 2) {
@@ -7,13 +7,6 @@ int fib(int n) {
     } else {
         return fib(n - 1) + fib(n - 2);
     }
-}
-
-void printf("%i", int n) {
-    if (n >= 10) {
-        printf("%i", n / 10);
-    }
-    putchar(n % 10 + '0');
 }
 
 int main() {
